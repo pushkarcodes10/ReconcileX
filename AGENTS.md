@@ -1,9 +1,51 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# Frontend Design Instructions
 
-# This is NOT the Next.js you know
+For premium website and frontend design tasks, use the Scroll-Craft
+design skill.
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+Before implementing a website, read:
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+scroll-craft/plugins/nateherk-design/skills/scroll-craft/SKILL.md
 
-<!-- END:nextjs-agent-rules -->
+Follow the complete workflow and referenced design documentation.
+
+Do not create generic AI-looking websites.
+
+Prioritize:
+
+- Premium visual design
+- Strong typography
+- Intentional composition
+- Distinct page grammar
+- Scroll-driven storytelling
+- Layered heroes
+- Cinematic transitions
+- Parallax
+- Horizontal scrolling when appropriate
+- Pinned sections
+- Kinetic typography
+- Image reveals
+- Micro-interactions
+- Responsive mobile composition
+- Accessibility
+- Reduced-motion support
+- Performance
+
+Use the Scroll-Craft references when making design decisions.
+
+Do not blindly copy the examples from Scroll-Craft.
+Use them as design references and create a unique experience for the
+specific project.
+
+Before coding, establish:
+
+1. Visual direction
+2. Visitor journey
+3. Page structure
+4. Typography
+5. Color system
+6. Animation strategy
+7. Responsive strategy
+8. Signature interaction
+
+Then implement and verify the result.
