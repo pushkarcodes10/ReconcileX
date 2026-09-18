@@ -1,44 +1,126 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-interface CTASectionProps {
-  className?: string;
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
 }
 
-export function CTASection({ className }: CTASectionProps) {
-  const buttonStyles =
-    "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900";
+const buttonStyles =
+  "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900";
 
-  const variants = {
-    primary: "bg-cyan-500 text-navy-900 hover:bg-cyan-400 active:bg-cyan-600 shadow-sm",
-    outline: "border border-navy-500 text-gray-200 hover:bg-navy-700 hover:border-navy-400 active:bg-navy-600",
-  };
+const variants = {
+  primary: "bg-cyan-500 text-navy-900 hover:bg-cyan-400 active:bg-cyan-600 shadow-sm",
+  outline: "border border-navy-500 text-gray-200 hover:bg-navy-700 hover:border-navy-400 active:bg-navy-600",
+};
 
-  const sizes = {
-    lg: "px-6 py-3 text-base gap-2.5",
-  };
+const sizes = {
+  lg: "px-6 py-3 text-base gap-2.5",
+};
+
+export function CTASection({ className }: { className?: string }) {
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const ctx = gsap.context(() => {
+      // Title animation
+      gsap.fromTo(
+        section.querySelector(".section-title"),
+        { y: 40, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 1,
+          ease: "power3.out",
+        }
+      );
+
+      // Subtitle animation
+      gsap.fromTo(
+        section.querySelector(".section-subtitle"),
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          delay: 0.2,
+        }
+      );
+
+      // Buttons stagger
+      gsap.fromTo(
+        section.querySelectorAll(".cta-button"),
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.6,
+          ease: "power3.out",
+          stagger: 0.1,
+          delay: 0.4,
+          scrollTrigger: {
+            trigger: section.querySelector(".cta-buttons"),
+            start: "top 85%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+
+      // Trust badges
+      gsap.fromTo(
+        section.querySelectorAll(".trust-badge"),
+        { y: 20, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.6,
+          ease: "power3.out",
+          stagger: 0.1,
+          delay: 0.8,
+          scrollTrigger: {
+            trigger: section.querySelector(".trust-badges"),
+            start: "top 90%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+}, section);
+
+  return () => ctx.revert();
+  }, []);
 
   return (
-    <section className={cn("py-24 lg:py-32 px-6 relative overflow-hidden", className)} aria-labelledby="cta-heading">
+    <section
+      ref={sectionRef}
+      className={cn("py-24 lg:py-32 px-6 relative overflow-hidden")}
+      aria-labelledby="cta-heading"
+    >
       <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-transparent" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-500/10 via-transparent to-transparent" />
 
       <div className="relative z-10 max-w-4xl mx-auto text-center">
-        <h2 id="cta-heading" className="text-3xl lg:text-4xl xl:text-5xl font-semibold text-white text-balance leading-[1.1]">
+        <h2 id="cta-heading" className="section-title text-3xl lg:text-4xl xl:text-5xl font-semibold text-white text-balance leading-[1.1]">
           From fragmented records to confident reconciliation.
         </h2>
-        <p className="mt-6 text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto text-pretty leading-relaxed">
+        <p className="section-subtitle mt-6 text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto text-pretty leading-relaxed">
           Bring transaction data together. Automate the repetitive work. Give your team a clear path to every exception.
         </p>
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <div className="cta-buttons mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
             href="/dashboard"
             className={cn(
               buttonStyles,
               variants.primary,
-              sizes.lg
+              sizes.lg,
+              "cta-button"
             )}
           >
             Open Dashboard
@@ -51,14 +133,15 @@ export function CTASection({ className }: CTASectionProps) {
             className={cn(
               buttonStyles,
               variants.outline,
-              sizes.lg
+              sizes.lg,
+              "cta-button"
             )}
           >
             Explore Workflow
           </Link>
         </div>
 
-        <div className="mt-16 flex items-center justify-center gap-8 text-sm text-gray-500">
+        <div className="trust-badges mt-16 flex items-center justify-center gap-8 text-sm text-gray-500">
           <div className="flex items-center gap-2">
             <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -84,15 +167,3 @@ export function CTASection({ className }: CTASectionProps) {
     </section>
   );
 }
-
-const buttonStyles =
-  "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900";
-
-const variants = {
-  primary: "bg-cyan-500 text-navy-900 hover:bg-cyan-400 active:bg-cyan-600 shadow-sm",
-  outline: "border border-navy-500 text-gray-200 hover:bg-navy-700 hover:border-navy-400 active:bg-navy-600",
-};
-
-const sizes = {
-  lg: "px-6 py-3 text-base gap-2.5",
-};

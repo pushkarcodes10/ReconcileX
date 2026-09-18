@@ -1,94 +1,157 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 interface ArchitectureSectionProps {
   className?: string;
 }
 
-export function ArchitectureSection({ className }: ArchitectureSectionProps) {
-  const [stage, setStage] = useState(0);
+interface LayerItem {
+  name: string;
+  color: string;
+  icon: string;
+}
+
+interface SubLayer {
+  name: string;
+  color: string;
+}
+
+interface Layer {
+  name: string;
+  items?: LayerItem[];
+  subLayers?: SubLayer[];
+}
+
+const layers: Layer[] = [
+  {
+    name: "DATA SOURCES",
+    items: [
+      { name: "Bank", icon: "🏦", color: "text-cyan-400" },
+      { name: "Payment Gateway", icon: "💳", color: "text-amber-400" },
+      { name: "Order System", icon: "📦", color: "text-blue-400" },
+      { name: "Accounting", icon: "📊", color: "text-purple-400" },
+    ],
+  },
+  {
+    name: "RECONCILEX",
+    subLayers: [
+      { name: "Frontend", color: "text-cyan-400" },
+      { name: "API", color: "text-white" },
+      { name: "Processing", color: "text-amber-400" },
+    ],
+  },
+  {
+    name: "BACKGROUND WORKERS",
+    items: [{ name: "Reconciliation Engine", color: "text-green-400", icon: "⚙️" }],
+  },
+  {
+    name: "INFRASTRUCTURE",
+    items: [
+      { name: "PostgreSQL", color: "text-blue-400", icon: "🗄️" },
+      { name: "Redis", color: "text-red-400", icon: "🔴" },
+    ],
+  },
+  {
+    name: "DASHBOARD",
+    items: [{ name: "Analytics & Operations", color: "text-cyan-400", icon: "📊" }],
+  },
+];
+
+export function ArchitectureSection({ className }: { className?: string }) {
   const sectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setStage(1);
-            setTimeout(() => setStage(2), 400);
-            setTimeout(() => setStage(3), 800);
-            setTimeout(() => setStage(4), 1200);
-          }
-        });
-      },
-      { threshold: 0.15, rootMargin: "0px 0px -100px 0px" }
-    );
+    const section = sectionRef.current;
+    if (!section) return;
 
-    if (sectionRef.current) observer.observe(sectionRef.current);
-    return () => observer.disconnect();
+    const ctx = gsap.context(() => {
+      // Title animation
+      gsap.fromTo(
+        section.querySelector(".section-title"),
+        { y: 40, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 1,
+          ease: "power3.out",
+        }
+      );
+
+      // Subtitle animation
+      gsap.fromTo(
+        section.querySelector(".section-subtitle"),
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          delay: 0.2,
+        }
+      );
+
+      // Layer cards stagger
+      gsap.fromTo(
+        section.querySelectorAll(".layer-card"),
+        { y: 50, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          stagger: 0.2,
+          scrollTrigger: {
+            trigger: section.querySelector(".layers-container"),
+            start: "top 80%",
+            end: "bottom 20%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+
+      // Feature cards
+      gsap.fromTo(
+        section.querySelectorAll(".arch-feature-card"),
+        { y: 40, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          stagger: 0.15,
+          scrollTrigger: {
+            trigger: section.querySelector(".arch-features-grid"),
+            start: "top 80%",
+            end: "bottom 20%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+    }, section);
+
+    return () => ctx.revert();
   }, []);
-
-  interface LayerItem {
-    name: string;
-    color: string;
-    icon?: string;
-  }
-
-  interface Layer {
-    name: string;
-    items?: LayerItem[];
-    subLayers?: { name: string; color: string }[];
-  }
-
-  const layers: Layer[] = [
-    {
-      name: "DATA SOURCES",
-      items: [
-        { name: "Bank", icon: "🏦", color: "text-cyan-400" },
-        { name: "Payment Gateway", icon: "💳", color: "text-amber-400" },
-        { name: "Order System", icon: "📦", color: "text-blue-400" },
-        { name: "Accounting", icon: "📊", color: "text-purple-400" },
-      ],
-    },
-    {
-      name: "RECONCILEX",
-      subLayers: [
-        { name: "Frontend", color: "text-cyan-400" },
-        { name: "API", color: "text-white" },
-        { name: "Processing", color: "text-amber-400" },
-      ],
-    },
-    {
-      name: "BACKGROUND WORKERS",
-      items: [{ name: "Reconciliation Engine", color: "text-green-400" }],
-    },
-    {
-      name: "INFRASTRUCTURE",
-      items: [
-        { name: "PostgreSQL", color: "text-blue-400" },
-        { name: "Redis", color: "text-red-400" },
-      ],
-    },
-    {
-      name: "DASHBOARD",
-      items: [{ name: "Analytics & Operations", color: "text-cyan-400" }],
-    },
-  ];
 
   return (
     <section
       ref={sectionRef}
-      className={cn("py-24 lg:py-32 px-6", className)}
+      className={cn("py-24 lg:py-32 px-6")}
       aria-labelledby="architecture-heading"
     >
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 id="architecture-heading" className="text-3xl lg:text-4xl font-semibold text-white text-balance">
+          <h2 id="architecture-heading" className="section-title text-3xl lg:text-4xl font-semibold text-white text-balance">
             Built for more than a spreadsheet.
           </h2>
-          <p className="mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
+          <p className="section-subtitle mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
             Enterprise-grade architecture designed for scale, reliability, and security.
           </p>
         </div>
@@ -96,18 +159,17 @@ export function ArchitectureSection({ className }: ArchitectureSectionProps) {
         <div className="relative">
           <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-navy-500 to-transparent -translate-x-1/2 hidden lg:block" />
 
-          <div className="space-y-8">
+          <div className="layers-container space-y-8">
             {layers.map((layer, layerIndex) => (
               <div
                 key={layer.name}
                 className={cn(
                   "relative flex items-center justify-center gap-4 transition-all duration-700",
-                  stage > layerIndex ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+                  "layer-card"
                 )}
               >
                 <div className={cn(
-                  "flex-shrink-0 w-48 lg:w-56 text-center transition-all duration-500",
-                  stage > layerIndex ? "opacity-100" : "opacity-50"
+                  "flex-shrink-0 w-48 lg:w-56 text-center transition-all duration-500"
                 )}>
                   <span className="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest">{layer.name}</span>
                   {layer.subLayers && (
@@ -143,13 +205,13 @@ export function ArchitectureSection({ className }: ArchitectureSectionProps) {
           </div>
         </div>
 
-        <div className="mt-16 grid md:grid-cols-3 gap-6">
+        <div className="arch-features-grid mt-16 grid md:grid-cols-3 gap-6">
           {[
             { title: "Modular Monolith", description: "Clean module boundaries. Easy to extract services when scale demands it." },
             { title: "Async by Default", description: "Large reconciliations process in background workers. API never blocks." },
             { title: "Observability Built-in", description: "Structured logs, metrics, and traces from day one via OpenTelemetry." },
           ].map((item) => (
-            <div key={item.title} className="p-6 rounded-2xl bg-navy-800/50 border border-navy-600">
+            <div key={item.title} className="arch-feature-card p-6 rounded-2xl bg-navy-800/50 border border-navy-600">
               <h4 className="text-lg font-semibold text-white mb-2">{item.title}</h4>
               <p className="text-gray-400">{item.description}</p>
             </div>

@@ -3,6 +3,12 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 interface HeroProps {
   className?: string;
@@ -11,6 +17,7 @@ interface HeroProps {
 export function Hero({ className }: HeroProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number>(0);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -200,8 +207,72 @@ export function Hero({ className }: HeroProps) {
     };
   }, []);
 
+  // GSAP ScrollTrigger animations for content
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const ctx = gsap.context(() => {
+      // Title animation
+      gsap.fromTo(
+        section.querySelector(".hero-title"),
+        { y: 60, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 1.2,
+          ease: "power4.out",
+        }
+      );
+
+      // Subtitle animation
+      gsap.fromTo(
+        section.querySelector(".hero-subtitle"),
+        { y: 40, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 1,
+          ease: "power3.out",
+          delay: 0.2,
+        }
+      );
+
+      // Buttons animation
+      gsap.fromTo(
+        section.querySelector(".hero-buttons"),
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          delay: 0.4,
+        }
+      );
+
+      // Scroll indicator
+      gsap.fromTo(
+        section.querySelector(".scroll-indicator"),
+        { y: 20, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          delay: 1,
+        }
+      );
+    }, sectionRef);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section className={cn("relative min-h-screen flex items-center justify-center overflow-hidden", className)}>
+    <section
+      ref={sectionRef}
+      className={cn("relative min-h-screen flex items-center justify-center overflow-hidden", className)}
+    >
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
@@ -211,46 +282,38 @@ export function Hero({ className }: HeroProps) {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-500/3 via-transparent to-transparent" />
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 py-20 text-center">
-        <div className="animate-in" style={{ animationDelay: "0ms" }}>
+        <div className="hero-title">
           <h1 className="text-4xl lg:text-6xl xl:text-7xl font-semibold tracking-tight text-white text-balance leading-[1.1]">
             Turn fragmented transaction data into one clear financial picture.
           </h1>
         </div>
-        <div className="mt-6 animate-in" style={{ animationDelay: "100ms" }}>
+        <div className="mt-6 hero-subtitle">
           <p className="text-lg lg:text-xl text-gray-300 max-w-3xl mx-auto text-pretty leading-relaxed">
             ReconcileX automatically compares transaction records across independent systems, identifies mismatches, and gives finance teams a structured workflow to investigate and resolve them.
           </p>
         </div>
-        <div className="mt-10 animate-in" style={{ animationDelay: "200ms" }}>
+        <div className="mt-10 hero-buttons">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
+            <a
               href="/dashboard"
-              className={cn(
-                "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900",
-                "px-6 py-3 text-base gap-2.5",
-                "bg-cyan-500 text-navy-900 hover:bg-cyan-400 active:bg-cyan-600 shadow-sm"
-              )}
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900 px-6 py-3 text-base gap-2.5 bg-cyan-500 text-navy-900 hover:bg-cyan-400 active:bg-cyan-600 shadow-sm"
             >
               Explore ReconcileX
               <svg className="ml-2 w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
-            </Link>
-            <Link
+            </a>
+            <a
               href="/dashboard"
-              className={cn(
-                "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900",
-                "px-6 py-3 text-base gap-2.5",
-                "border border-navy-500 text-gray-200 hover:bg-navy-700 hover:border-navy-400 active:bg-navy-600"
-              )}
+              className="inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900 px-6 py-3 text-base gap-2.5 border border-navy-500 text-gray-200 hover:bg-navy-700 hover:border-navy-400 active:bg-navy-600"
             >
               View Dashboard
-            </Link>
+            </a>
           </div>
         </div>
       </div>
 
-      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-in animate-pulse-subtle" style={{ animationDelay: "800ms" }}>
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 scroll-indicator">
         <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
         </svg>

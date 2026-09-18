@@ -1,42 +1,93 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/Badge";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 interface ProblemSectionProps {
   className?: string;
 }
 
 export function ProblemSection({ className }: ProblemSectionProps) {
-  const [visibleCards, setVisibleCards] = useState<Set<number>>(new Set());
   const sectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setTimeout(() => {
-              setVisibleCards((prev) => new Set([...prev, 0]));
-            }, 100);
-            setTimeout(() => {
-              setVisibleCards((prev) => new Set([...prev, 1]));
-            }, 300);
-            setTimeout(() => {
-              setVisibleCards((prev) => new Set([...prev, 2]));
-            }, 500);
-            setTimeout(() => {
-              setVisibleCards((prev) => new Set([...prev, 3]));
-            }, 700);
-          }
-        });
-      },
-      { threshold: 0.1, rootMargin: "0px 0px -100px 0px" }
-    );
+    const section = sectionRef.current;
+    if (!section) return;
 
-    if (sectionRef.current) observer.observe(sectionRef.current);
-    return () => observer.disconnect();
+    const ctx = gsap.context(() => {
+      // Title animation
+      gsap.fromTo(
+        section.querySelector(".section-title"),
+        { y: 40, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 1,
+          ease: "power3.out",
+        }
+      );
+
+      // Subtitle animation
+      gsap.fromTo(
+        section.querySelector(".section-subtitle"),
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          delay: 0.2,
+        }
+      );
+
+      // Source cards stagger animation
+      gsap.fromTo(
+        section.querySelectorAll(".source-card"),
+        { y: 50, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          stagger: 0.15,
+          scrollTrigger: {
+            trigger: section.querySelector(".sources-grid"),
+            start: "top 80%",
+            end: "bottom 20%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+
+      // Flow diagram stagger animation
+      gsap.fromTo(
+        section.querySelectorAll(".flow-card"),
+        { y: 40, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          stagger: 0.15,
+          delay: 0.3,
+          scrollTrigger: {
+            trigger: section.querySelector(".flow-grid"),
+            start: "top 80%",
+            end: "bottom 20%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+    }, section);
+
+    return () => ctx.revert();
   }, []);
 
   const sources = [
@@ -54,26 +105,22 @@ export function ProblemSection({ className }: ProblemSectionProps) {
     >
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 id="problem-heading" className="text-3xl lg:text-4xl font-semibold text-white text-balance">
+          <h2 id="problem-heading" className="section-title text-3xl lg:text-4xl font-semibold text-white text-balance">
             Your transaction data doesn&apos;t live in one place.
           </h2>
-          <p className="mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
+          <p className="section-subtitle mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
             Every system speaks a different language. ReconcileX translates them all.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+        <div className="sources-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           {sources.map((source, index) => (
             <div
               key={source.key}
               className={cn(
-                "rounded-2xl border p-6 transition-all duration-500",
+                "source-card rounded-2xl border p-6 transition-all duration-500",
                 source.bg,
-                visibleCards.has(index)
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 translate-y-8"
               )}
-              style={{ willChange: "transform, opacity" }}
             >
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-3xl" aria-hidden="true">{source.icon}</span>
@@ -117,7 +164,7 @@ export function ProblemSection({ className }: ProblemSectionProps) {
             </svg>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
+          <div className="flow-grid grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
             {[
               { label: "Different IDs", description: "Each system generates its own transaction identifiers" },
               { label: "Different formats", description: "Amounts, dates, and references structured differently" },
@@ -125,12 +172,7 @@ export function ProblemSection({ className }: ProblemSectionProps) {
             ].map((item, index) => (
               <div
                 key={item.label}
-                className={cn(
-                  "text-center p-6 rounded-xl bg-navy-800/50 border border-navy-600 transition-all duration-500",
-                  visibleCards.has(index + 4)
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 translate-y-8"
-                )}
+                className="flow-card text-center p-6 rounded-xl bg-navy-800/50 border border-navy-600"
               >
                 <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
                   <svg className="w-8 h-8 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-interface MatchingEngineSectionProps {
-  className?: string;
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
 }
 
 const examples = [
@@ -54,7 +56,7 @@ const examples = [
   },
 ];
 
-export function MatchingEngineSection({ className }: MatchingEngineSectionProps) {
+export function MatchingEngineSection({ className }: { className?: string }) {
   const [activeExample, setActiveExample] = useState(0);
   const [animStep, setAnimStep] = useState(0);
   const sectionRef = useRef<HTMLDivElement | null>(null);
@@ -73,21 +75,75 @@ export function MatchingEngineSection({ className }: MatchingEngineSectionProps)
   };
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            runAnimation();
-          } else {
-            setAnimStep(0);
-          }
-        });
-      },
-      { threshold: 0.2, rootMargin: "0px 0px -100px 0px" }
-    );
+    const section = sectionRef.current;
+    if (!section) return;
 
-    if (sectionRef.current) observer.observe(sectionRef.current);
-    return () => observer.disconnect();
+    const ctx = gsap.context(() => {
+      // Title animation
+      gsap.fromTo(
+        section.querySelector(".section-title"),
+        { y: 40, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 1,
+          ease: "power3.out",
+        }
+      );
+
+      // Subtitle animation
+      gsap.fromTo(
+        section.querySelector(".section-subtitle"),
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          delay: 0.2,
+        }
+      );
+
+      // Tab buttons stagger
+      gsap.fromTo(
+        section.querySelectorAll(".tab-button"),
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.6,
+          ease: "power3.out",
+          stagger: 0.1,
+          scrollTrigger: {
+            trigger: section.querySelector(".tabs-container"),
+            start: "top 80%",
+            end: "bottom 20%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+
+      // Transaction cards and analysis panel
+      gsap.fromTo(
+        section.querySelectorAll(".transaction-card, .analysis-panel"),
+        { y: 50, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          stagger: 0.15,
+          scrollTrigger: {
+            trigger: section.querySelector(".content-grid"),
+            start: "top 80%",
+            end: "bottom 20%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+    }, section);
+
+    return () => ctx.revert();
   }, []);
 
   useEffect(() => {
@@ -107,21 +163,21 @@ export function MatchingEngineSection({ className }: MatchingEngineSectionProps)
     >
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12">
-          <h2 id="matching-heading" className="text-3xl lg:text-4xl font-semibold text-white text-balance">
+          <h2 id="matching-heading" className="section-title text-3xl lg:text-4xl font-semibold text-white text-balance">
             Every match should have a reason.
           </h2>
-          <p className="mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
+          <p className="section-subtitle mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
             Deterministic rules. Explainable decisions. No black boxes.
           </p>
         </div>
 
-        <div className="flex justify-center gap-4 mb-12">
+        <div className="tabs-container flex justify-center gap-4 mb-12">
           {examples.map((_, index) => (
             <button
               key={index}
               onClick={() => setActiveExample(index)}
               className={cn(
-                "px-6 py-2 rounded-lg text-sm font-medium transition-all duration-300",
+                "tab-button px-6 py-2 rounded-lg text-sm font-medium transition-all duration-300",
                 activeExample === index
                   ? "bg-cyan-500 text-navy-900"
                   : "bg-navy-800 text-gray-300 hover:bg-navy-700 hover:text-white"
@@ -133,7 +189,7 @@ export function MatchingEngineSection({ className }: MatchingEngineSectionProps)
           ))}
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="content-grid grid lg:grid-cols-3 gap-8">
           <TransactionCard
             label="INTERNAL ORDER"
             data={example.internal}
@@ -149,7 +205,7 @@ export function MatchingEngineSection({ className }: MatchingEngineSectionProps)
             totalSteps={example.checks.length + 2}
             isExternal
           />
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3 analysis-panel">
             <div className="bg-navy-800/50 border border-navy-600 rounded-2xl p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-white">Matching Analysis</h3>
@@ -223,7 +279,7 @@ function TransactionCard({ label, data, accentColor, animStep, totalSteps, isExt
   };
 
   return (
-    <div className={cn("p-6 rounded-2xl border h-full", colors[accentColor])}>
+    <div className={cn("transaction-card p-6 rounded-2xl border h-full", colors[accentColor])}>
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 rounded-xl bg-navy-900/50 flex items-center justify-center">
           <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

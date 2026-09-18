@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-interface WorkflowSectionProps {
-  className?: string;
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
 }
 
 const workflowSteps = [
@@ -46,57 +48,84 @@ const workflowSteps = [
   },
 ];
 
-export function WorkflowSection({ className }: WorkflowSectionProps) {
-  const [activeStep, setActiveStep] = useState(-1);
+export function WorkflowSection({ className }: { className?: string }) {
   const sectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActiveStep(0);
-            const interval = setInterval(() => {
-              setActiveStep((prev) => (prev + 1) % workflowSteps.length);
-            }, 800);
-            return () => clearInterval(interval);
-          }
-        });
-      },
-      { threshold: 0.1, rootMargin: "0px 0px -100px 0px" }
-    );
+    const section = sectionRef.current;
+    if (!section) return;
 
-    if (sectionRef.current) observer.observe(sectionRef.current);
-    return () => observer.disconnect();
+    const ctx = gsap.context(() => {
+      // Title animation
+      gsap.fromTo(
+        section.querySelector(".section-title"),
+        { y: 40, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 1,
+          ease: "power3.out",
+        }
+      );
+
+      // Subtitle animation
+      gsap.fromTo(
+        section.querySelector(".section-subtitle"),
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          delay: 0.2,
+        }
+      );
+
+      // Steps stagger animation
+      gsap.fromTo(
+        section.querySelectorAll(".workflow-card"),
+        { y: 50, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          stagger: 0.15,
+          scrollTrigger: {
+            trigger: section.querySelector(".workflow-grid"),
+            start: "top 80%",
+            end: "bottom 20%",
+            toggleActions: "play none none reverse",
+          },
+        }
+      );
+    }, section);
+
+    return () => ctx.revert();
   }, []);
 
   return (
     <section
       ref={sectionRef}
-      className={cn("py-24 lg:py-32 px-6 bg-navy-800/30", className)}
+      className={cn("py-24 lg:py-32 px-6 bg-navy-800/30")}
       aria-labelledby="workflow-heading"
     >
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 id="workflow-heading" className="text-3xl lg:text-4xl font-semibold text-white text-balance">
+          <h2 id="workflow-heading" className="section-title text-3xl lg:text-4xl font-semibold text-white text-balance">
             How It Works
           </h2>
-          <p className="mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
+          <p className="section-subtitle mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
             A transparent, deterministic workflow from raw data to resolved reconciliation.
           </p>
         </div>
 
         <div className="relative">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="workflow-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {workflowSteps.map((step, index) => (
               <article
                 key={step.number}
-                className={cn(
-                  "relative p-6 rounded-2xl border transition-all duration-500",
-                  activeStep === index
-                    ? "bg-cyan-500/10 border-cyan-500/30 ring-2 ring-cyan-500/20"
-                    : "bg-navy-800/50 border-navy-600 hover:border-navy-500"
-                )}
+                className="workflow-card relative p-6 rounded-2xl border bg-navy-800/50 border-navy-600 hover:border-navy-500 transition-all duration-500"
               >
                 <div className="flex items-center gap-3 mb-4">
                   <span className="text-3xl font-mono font-semibold text-cyan-400">{step.number}</span>
@@ -106,10 +135,6 @@ export function WorkflowSection({ className }: WorkflowSectionProps) {
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
                 <p className="text-gray-400 text-sm">{step.description}</p>
-
-                {activeStep === index && (
-                  <div className="absolute inset-0 rounded-2xl border-cyan-500/50 animate-pulse pointer-events-none" />
-                )}
               </article>
             ))}
           </div>
