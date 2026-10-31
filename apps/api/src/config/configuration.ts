@@ -11,6 +11,11 @@ export interface AppConfig {
   logging: {
     level: string;
   };
+  jwt: {
+    secret: string;
+    expiresIn: string;
+    refreshExpiresIn: string;
+  };
   database: {
     host: string;
     port: number;
@@ -41,6 +46,11 @@ export default registerAs('app', (): AppConfig => {
     },
     logging: {
       level: process.env.LOG_LEVEL || 'info',
+    },
+    jwt: {
+      secret: process.env.JWT_SECRET || 'reconcilex-super-secret-jwt-key-minimum-32-chars-long',
+      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+      refreshExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
     },
     database: {
       host: process.env.POSTGRES_HOST || 'localhost',

@@ -4,19 +4,36 @@ ReconcileX is a production-grade, multi-tenant transaction reconciliation platfo
 
 ---
 
-## Architecture Overview (Phase A1: Backend Foundation)
+## Architecture Overview
 
-In this foundational phase, ReconcileX provides:
+ReconcileX is structured as a scalable pnpm monorepo consisting of:
 
-- **pnpm Monorepo**: Separates API applications (`apps/api`) and shared database packages (`packages/db`).
-- **NestJS Modular Core**: Bootstrapped with strict TypeScript, global validation, and graceful shutdown hooks.
-- **Drizzle ORM Connection Layer**: Lightweight, high-performance PostgreSQL connection pool ready for upcoming schema phases.
-- **Pino Structured Logging**: Request/response lifecycle tracking with automatic redaction of sensitive credentials.
-- **Request ID Tracking**: Correlation across incoming requests, structured logs, and error responses via `X-Request-Id`.
-- **Global Error Handling**: Standardized error envelopes that prevent data leaks and hide internal stack traces.
-- **Health & Readiness Endpoints**: Liveness probe (`/api/v1/health`) and live PostgreSQL readiness probe (`/api/v1/health/ready`).
-- **OpenAPI / Swagger**: Interactive API documentation available at `/api/docs`.
-- **Vitest Suite**: Fast unit and integration tests covering bootstrap, health, request ID propagation, and exception handling.
+- **Apps**:
+  - `apps/api`: NestJS application providing the HTTP API, global validation, request ID tracing, JWT authentication, and multi-tenant RBAC enforcement.
+- **Packages**:
+  - `packages/db`: Drizzle ORM schemas, database migrations, connection pooling, and shared database types.
+- **Infrastructure**:
+  - `infra/docker`: PostgreSQL 16 container definition via Docker Compose.
+
+### Implemented Phases
+
+- **Phase A1: Backend Foundation**:
+  - pnpm monorepo structure with strict TypeScript.
+  - Global `RequestIdMiddleware` attaching `X-Request-Id` to all requests and responses.
+  - Pino structured logging with automatic credential redaction.
+  - Global `GlobalExceptionFilter` with sanitized RFC-style error envelopes.
+  - Health (`/api/v1/health`) and PostgreSQL readiness probe (`/api/v1/health/ready`).
+  - Interactive Swagger / OpenAPI documentation at `/api/docs`.
+- **Phase A2: Authentication, Organizations & RBAC**:
+  - Argon2id password hashing with memory-hard parameters.
+  - JWT access tokens (15m expiry) and rotating refresh tokens (7d expiry).
+  - Secure `httpOnly`, `SameSite=Lax` cookies with Authorization Bearer header fallback.
+  - Single-use cryptographically secure refresh token rotation and revocation.
+  - Multi-tenant organization isolation (`organizations`, `organization_memberships`).
+  - Four-tier Role-Based Access Control: `ADMIN`, `FINANCE_MANAGER`, `ANALYST`, `AUDITOR`.
+  - Last-ADMIN protection preventing organizations from being orphaned.
+  - Cross-tenant data isolation: unassociated requests return `404 Not Found` to prevent IDOR probing.
+  - Secure token-based invitation and password reset lifecycles.
 
 ---
 
@@ -28,23 +45,29 @@ reconcile-x/
 │   └── api/
 │       ├── src/
 │       │   ├── common/
+│       │   │   ├── decorators/        # @CurrentUser, @CurrentOrg, @Roles
 │       │   │   ├── filters/           # Global exception filter
+│       │   │   ├── guards/            # JwtAuthGuard, OrgGuard, RolesGuard
 │       │   │   ├── interceptors/      # Response interceptors
 │       │   │   └── middleware/        # Request ID tracking
 │       │   ├── config/                # Environment validation & typed config
 │       │   ├── database/              # DB connection provider & lifecycle
 │       │   ├── health/                # Health & readiness probes
+│       │   ├── modules/
+│       │   │   ├── auth/              # Authentication, tokens, password hashing
+│       │   │   └── organizations/     # Multi-tenancy, memberships, invitations
 │       │   ├── app.module.ts          # Main application module
-│       │   └── main.ts                # Bootstrap & Swagger setup
-│       ├── test/                      # Vitest test suite
+│       │   └── main.ts                # Bootstrap, cookie parser & Swagger
+│       ├── test/                      # Vitest test suite (30 unit & integration tests)
 │       ├── package.json
 │       ├── tsconfig.json
 │       └── vitest.config.ts
 ├── packages/
 │   └── db/
+│       ├── drizzle/                   # Drizzle migration files (.sql)
 │       ├── src/
-│       │   ├── schema/                # Drizzle schema definitions
-│       │   └── index.ts               # Database client & health check
+│       │   ├── schema/                # Users, orgs, memberships, tokens, resets
+│       │   └── index.ts               # Database client & exports
 │       ├── drizzle.config.ts
 │       ├── package.json
 │       └── tsconfig.json
@@ -67,195 +90,325 @@ reconcile-x/
 
 ## Prerequisites
 
-Before starting, ensure the following are installed on your host machine:
+Before starting, ensure the following are installed:
 
 - **Node.js**: `v20.x` or `v22.x`+ (LTS recommended)
 - **pnpm**: `v9.x` or `v12.x`+ (`npm install -g pnpm`)
-- **Docker & Docker Compose**: For containerized PostgreSQL 16 (or an existing PostgreSQL instance)
+- **Docker & Docker Compose**: For containerized PostgreSQL 16 (or an existing PostgreSQL 16 instance)
 - **PowerShell** (Windows) or **Bash** (macOS/Linux)
 
 ---
 
-## Quickstart Guide (Windows PowerShell)
+## Quickstart Guide
 
-### 1. Clone & Install Dependencies
-
-From the project root:
+### 1. Install Dependencies
 
 ```powershell
-# Install all workspace dependencies
 pnpm install
 ```
 
 ### 2. Configure Environment Variables
 
-Create your local `.env` file by copying the example:
+Create `.env` by copying `.env.example`:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Default configuration in `.env`:
+Key environment variables:
 
-| Variable            | Default Value                                              | Description                                                   |
-| ------------------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
-| `NODE_ENV`          | `development`                                              | Runtime environment                                           |
-| `PORT`              | `3000`                                                     | HTTP port for the NestJS API                                  |
-| `API_PREFIX`        | `api/v1`                                                   | Global API route prefix                                       |
-| `CORS_ORIGIN`       | `http://localhost:5173`                                    | Allowed CORS origins (comma-separated or `*`)                 |
-| `CORS_CREDENTIALS`  | `true`                                                     | Allow credentials in CORS requests                            |
-| `LOG_LEVEL`         | `info`                                                     | Logging verbosity (`fatal`, `error`, `warn`, `info`, `debug`) |
-| `POSTGRES_HOST`     | `localhost`                                                | PostgreSQL host                                               |
-| `POSTGRES_PORT`     | `5432`                                                     | PostgreSQL port                                               |
-| `POSTGRES_USER`     | `postgres`                                                 | Database username                                             |
-| `POSTGRES_PASSWORD` | `postgres`                                                 | Database password                                             |
-| `POSTGRES_DB`       | `reconcilex`                                               | Database name                                                 |
-| `DATABASE_URL`      | `postgresql://postgres:postgres@localhost:5432/reconcilex` | Complete connection string                                    |
+| Variable                   | Default Value                                              | Description                          |
+| -------------------------- | ---------------------------------------------------------- | ------------------------------------ |
+| `NODE_ENV`                 | `development`                                              | Runtime environment                  |
+| `PORT`                     | `3000`                                                     | HTTP port for NestJS API             |
+| `API_PREFIX`               | `api/v1`                                                   | Route prefix                         |
+| `JWT_SECRET`               | `reconcilex-super-secret-jwt-key...`                       | Minimum 32-character HMAC secret key |
+| `JWT_EXPIRES_IN`           | `15m`                                                      | Short-lived access token lifespan    |
+| `REFRESH_TOKEN_EXPIRES_IN` | `7d`                                                       | Rotating refresh token lifespan      |
+| `POSTGRES_HOST`            | `localhost`                                                | PostgreSQL host                      |
+| `POSTGRES_PORT`            | `5432`                                                     | PostgreSQL port                      |
+| `DATABASE_URL`             | `postgresql://postgres:postgres@localhost:5432/reconcilex` | Database connection string           |
 
 ---
 
-### 3. Start PostgreSQL via Docker Compose
+### 3. Database Migration & Docker
 
-Start the PostgreSQL 16 container:
+Start PostgreSQL container:
 
 ```powershell
-# Start PostgreSQL in the background
 pnpm run docker:up
-
-# Check container status
-docker ps
 ```
 
-To stop the container:
+Apply database migrations:
 
 ```powershell
-pnpm run docker:down
+pnpm run db:migrate
 ```
 
 ---
 
-### 4. Build and Start the API
+### 4. Build & Start the Application
 
-#### Build all packages:
+Build all workspaces:
 
 ```powershell
 pnpm run build
 ```
 
-#### Run in development mode (with hot reloading):
+Start the API with hot reloading:
 
 ```powershell
 pnpm run dev
 ```
 
-#### Run in production mode:
-
-```powershell
-node apps/api/dist/main.js
-```
+Interactive Swagger documentation is available at:
+`http://localhost:3000/api/docs`
 
 ---
 
-## Health Check and API Verification
+## Testing & Quality Verification
 
-Once the API is running, verify the endpoints:
-
-### Liveness Probe
-
-- **URL**: `http://localhost:3000/api/v1/health`
-- **Method**: `GET`
-- **Expected Status**: `200 OK`
-- **Response**:
-
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-10-31T08:00:00.000Z",
-  "uptime": 12.34
-}
-```
-
-### Readiness Probe (PostgreSQL connectivity check)
-
-- **URL**: `http://localhost:3000/api/v1/health/ready`
-- **Method**: `GET`
-- **Expected Status**: `200 OK` (when database is reachable) / `503 Service Unavailable` (when unreachable)
-- **Healthy Response (200)**:
-
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-10-31T08:00:00.000Z",
-  "checks": {
-    "database": {
-      "status": "up",
-      "latencyMs": 3
-    }
-  }
-}
-```
-
-- **Unhealthy Response (503)**:
-
-```json
-{
-  "status": "error",
-  "timestamp": "2026-10-31T08:00:00.000Z",
-  "checks": {
-    "database": {
-      "status": "down"
-    }
-  }
-}
-```
-
-### Swagger Documentation
-
-- **URL**: `http://localhost:3000/api/docs`
-- Interactive OpenAPI 3.0 explorer with schemas, tags, and request ID parameters.
-
----
-
-## Running Quality Checks and Tests
-
-Run the full verification suite using the root scripts:
+Run all test suites and code linters from the root directory:
 
 ```powershell
-# Run Vitest test suite
+# Run all Vitest unit and integration tests (30 tests across 6 suites)
 pnpm test
 
-# Run TypeScript typechecking across all workspaces
+# Run TypeScript typechecking across all workspace packages
 pnpm run typecheck
 
-# Run ESLint across all files
+# Run ESLint
 pnpm run lint
 
-# Check Prettier code formatting
+# Verify Prettier code style
 pnpm run format:check
-
-# Auto-format files
-pnpm run format
 ```
 
 ---
 
-## Troubleshooting
+## End-to-End API Testing Guide (Phase A2)
 
-### 1. Database Readiness Check Returns 503
+Use the following PowerShell or `curl` commands to test the full authentication and organization lifecycle.
 
-- Ensure the PostgreSQL container is running: `docker ps`
-- Verify that credentials in `.env` match Docker Compose (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`).
-- If using an existing local PostgreSQL service, update `.env` with your local port and password.
+### 1. User & Organization Registration
 
-### 2. Port Conflict on 3000 or 5432
-
-- If port `3000` is already in use by another application, change `PORT=3001` in `.env`.
-- If port `5432` is in use, modify `POSTGRES_PORT=5433` in `.env`. Docker Compose will map host port `5433` to container port `5432`.
-
-### 3. pnpm Execution Policy (Windows PowerShell)
-
-- If PowerShell blocks scripts (`pnpm : File ... cannot be loaded because running scripts is disabled`), run:
+Registers a new user, creates their initial organization, and assigns them the `ADMIN` role.
 
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+$registerBody = @{
+  email = "alice@acme.com"
+  password = "SecurePassword123!"
+  name = "Alice Admin"
+  organizationName = "Acme Corp"
+} | ConvertTo-Json
+
+$registerResponse = Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/register" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $registerBody `
+  -SessionVariable session
+
+$registerResponse
 ```
+
+**Expected Response (201 Created):**
+
+```json
+{
+  "user": {
+    "id": "...",
+    "email": "alice@acme.com",
+    "name": "Alice Admin",
+    "status": "ACTIVE"
+  },
+  "organization": {
+    "id": "...",
+    "name": "Acme Corp",
+    "slug": "acme-corp",
+    "role": "ADMIN"
+  }
+}
+```
+
+_Note: Sets `httpOnly` cookies for `access_token` and `refresh_token`._
+
+---
+
+### 2. User Login
+
+```powershell
+$loginBody = @{
+  email = "alice@acme.com"
+  password = "SecurePassword123!"
+} | ConvertTo-Json
+
+$loginResponse = Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/login" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $loginBody `
+  -SessionVariable session
+
+$loginResponse
+```
+
+**Expected Response (200 OK):**
+
+```json
+{
+  "user": {
+    "id": "...",
+    "email": "alice@acme.com",
+    "name": "Alice Admin",
+    "status": "ACTIVE"
+  },
+  "memberships": [
+    {
+      "organizationId": "...",
+      "organizationName": "Acme Corp",
+      "organizationSlug": "acme-corp",
+      "role": "ADMIN"
+    }
+  ]
+}
+```
+
+---
+
+### 3. Get Authenticated Profile (`/auth/me`)
+
+Uses the active session cookies:
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/me" `
+  -Method Get `
+  -WebSession $session
+```
+
+---
+
+### 4. Rotate Access Token via Refresh Token
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/refresh" `
+  -Method Post `
+  -WebSession $session
+```
+
+**Expected Response (200 OK):**
+
+```json
+{
+  "success": true
+}
+```
+
+_Note: Automatically rotates both the access token and the refresh token cookie. Old refresh tokens are invalidated._
+
+---
+
+### 5. Multi-Tenant Organization Management
+
+#### List organizations:
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/organizations" `
+  -Method Get `
+  -WebSession $session
+```
+
+#### Update organization name (Admin only):
+
+```powershell
+$orgId = $loginResponse.memberships[0].organizationId
+
+$updateBody = @{
+  name = "Acme Global Industries"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/organizations/$orgId" `
+  -Method Patch `
+  -ContentType "application/json" `
+  -Body $updateBody `
+  -WebSession $session
+```
+
+---
+
+### 6. Member Invitations & RBAC
+
+#### Invite a new member as `ANALYST`:
+
+```powershell
+$inviteBody = @{
+  email = "bob@acme.com"
+  role = "ANALYST"
+} | ConvertTo-Json
+
+$invite = Invoke-RestMethod -Uri "http://localhost:3000/api/v1/organizations/$orgId/invitations" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $inviteBody `
+  -WebSession $session
+
+$invite
+```
+
+**Expected Response (201 Created):**
+
+```json
+{
+  "id": "...",
+  "organizationId": "...",
+  "email": "bob@acme.com",
+  "role": "ANALYST",
+  "token": "...",
+  "expiresAt": "..."
+}
+```
+
+#### Accept the invitation (registering Bob):
+
+```powershell
+$acceptBody = @{
+  token = $invite.token
+  password = "BobSecurePassword123!"
+  name = "Bob Analyst"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/invitations/accept" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $acceptBody
+```
+
+---
+
+### 7. Tenant Isolation Verification (IDOR Protection)
+
+When a user in Organization A attempts to access Organization B's members or resources:
+
+```powershell
+$fakeOrgId = [guid]::NewGuid().ToString()
+
+try {
+  Invoke-RestMethod -Uri "http://localhost:3000/api/v1/organizations/$fakeOrgId/members" `
+    -Method Get `
+    -WebSession $session
+} catch {
+  $_.Exception.Response.StatusCode # Returns 404 (Not Found)
+}
+```
+
+_Note: Returns `404 Not Found` rather than `403 Forbidden` to prevent malicious tenant enumeration._
+
+---
+
+### 8. Logout & Session Invalidation
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/logout" `
+  -Method Post `
+  -WebSession $session
+```
+
+_Note: Clears the cookies and marks the refresh token revoked in the database._

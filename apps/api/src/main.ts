@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AppConfig } from './config/configuration';
@@ -12,6 +13,9 @@ async function bootstrap(): Promise<void> {
   // Use Pino structured logger for all NestJS internal and application logs
   const logger = app.get(Logger);
   app.useLogger(logger);
+
+  // Cookie parser for reading httpOnly JWT and refresh cookies
+  app.use(cookieParser());
 
   // Retrieve application configuration
   const configService = app.get(ConfigService);
@@ -56,6 +60,18 @@ async function bootstrap(): Promise<void> {
     )
     .setVersion('1.0')
     .addTag('Health', 'Application liveness and readiness probes')
+    .addTag('Auth', 'Authentication and session management')
+    .addTag('Organizations', 'Multi-tenant organization and membership management')
+    .addTag('Data Sources', 'Data source configuration and canonical column mapping')
+    .addTag('Transactions', 'Canonical transaction catalog and exploration')
+    .addTag('Duplicate Candidates', 'Flagged duplicate transaction candidates for quarantine inspection')
+    .addCookieAuth('access_token', {
+      type: 'apiKey',
+      in: 'cookie',
+      name: 'access_token',
+      description: 'JWT session cookie',
+    })
+    .addApiKey({ type: 'apiKey', name: 'X-Organization-Id', in: 'header' }, 'X-Organization-Id')
     .addApiKey({ type: 'apiKey', name: 'X-Request-Id', in: 'header' }, 'X-Request-Id')
     .build();
 

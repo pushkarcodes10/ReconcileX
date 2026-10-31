@@ -8,6 +8,10 @@ import configuration from './config/configuration';
 import { validateEnvironment } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { DataSourcesModule } from './modules/data-sources/data-sources.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { TransactionsModule } from './modules/transactions/transactions.module';
 
 @Module({
   imports: [
@@ -58,6 +62,10 @@ import { HealthModule } from './health/health.module';
     }),
     DatabaseModule,
     HealthModule,
+    AuthModule,
+    OrganizationsModule,
+    DataSourcesModule,
+    TransactionsModule,
   ],
   providers: [
     {

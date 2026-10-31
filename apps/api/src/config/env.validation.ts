@@ -58,6 +58,21 @@ export class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
+  JWT_SECRET: string = 'reconcilex-super-secret-jwt-key-minimum-32-chars-long';
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  JWT_EXPIRES_IN: string = '15m';
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  REFRESH_TOKEN_EXPIRES_IN: string = '7d';
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
   POSTGRES_HOST: string = 'localhost';
 
   @IsInt()

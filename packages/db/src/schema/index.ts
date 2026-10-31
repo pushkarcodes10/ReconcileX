@@ -1,5 +1,10 @@
-/**
- * ReconcileX Database Schema
- * Domain models and tables will be introduced incrementally starting in Phase A2.
- */
-export const schema = {};
+export * from './data-sources';
+export * from './duplicate-candidates';
+export * from './invitations';
+export * from './organization-memberships';
+export * from './organizations';
+export * from './password-resets';
+export * from './refresh-tokens';
+export * from './roles';
+export * from './transactions';
+export * from './users';
