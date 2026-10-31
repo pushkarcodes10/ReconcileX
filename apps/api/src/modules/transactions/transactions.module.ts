@@ -1,20 +1,15 @@
 import { Module } from '@nestjs/common';
-import { OrgGuard } from '../../common/guards/org.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { DrizzleTransactionsRepository } from './repositories/drizzle-transactions.repository';
 import { TRANSACTIONS_REPOSITORY } from './repositories/transactions.repository.interface';
-import {
-  DuplicateCandidatesController,
-  TransactionsController,
-} from './transactions.controller';
+import { TransactionsController } from './transactions.controller';
 import { TransactionsService } from './transactions.service';
 
 @Module({
-  controllers: [TransactionsController, DuplicateCandidatesController],
+  imports: [OrganizationsModule],
+  controllers: [TransactionsController],
   providers: [
     TransactionsService,
-    OrgGuard,
-    RolesGuard,
     {
       provide: TRANSACTIONS_REPOSITORY,
       useClass: DrizzleTransactionsRepository,

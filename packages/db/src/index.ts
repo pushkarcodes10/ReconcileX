@@ -55,9 +55,7 @@ export function createDatabaseClient(options: DatabaseConnectionOptions): {
 /**
  * Verifies live PostgreSQL connectivity by executing a lightweight SELECT 1 query.
  */
-export async function checkDatabaseHealth(
-  pool: DatabasePool,
-): Promise<DatabaseHealthResult> {
+export async function checkDatabaseHealth(pool: DatabasePool): Promise<DatabaseHealthResult> {
   const start = Date.now();
   const client = await pool.connect();
   try {
@@ -157,16 +155,18 @@ export async function initializeSchema(pool: DatabasePool): Promise<void> {
         column_mapping JSONB NOT NULL,
         status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        deleted_at TIMESTAMPTZ,
+        CONSTRAINT data_sources_org_id_uniq UNIQUE(organization_id, id)
       );
-      CREATE UNIQUE INDEX IF NOT EXISTS data_sources_org_name_idx ON data_sources(organization_id, name);
+      CREATE UNIQUE INDEX IF NOT EXISTS data_sources_org_name_idx ON data_sources(organization_id, name) WHERE deleted_at IS NULL;
       CREATE INDEX IF NOT EXISTS data_sources_org_status_idx ON data_sources(organization_id, status);
+      CREATE INDEX IF NOT EXISTS data_sources_org_idx ON data_sources(organization_id);
 
       CREATE TABLE IF NOT EXISTS transactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         data_source_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE RESTRICT,
-        import_id UUID,
         external_id VARCHAR(255) NOT NULL,
         amount_minor BIGINT NOT NULL,
         currency VARCHAR(3) NOT NULL,
@@ -175,33 +175,18 @@ export async function initializeSchema(pool: DatabasePool): Promise<void> {
         external_txn_id VARCHAR(255),
         merchant_or_order_id VARCHAR(255),
         txn_type VARCHAR(50),
-        status VARCHAR(50) NOT NULL DEFAULT 'IMPORTED',
+        status VARCHAR(50) NOT NULL DEFAULT 'UNMATCHED',
         normalized_payload JSONB,
         fingerprint VARCHAR(64),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT transactions_org_datasource_fk FOREIGN KEY (organization_id, data_source_id) REFERENCES data_sources(organization_id, id) ON DELETE RESTRICT
       );
       CREATE UNIQUE INDEX IF NOT EXISTS transactions_org_source_ext_id_idx ON transactions(organization_id, data_source_id, external_id);
       CREATE INDEX IF NOT EXISTS transactions_org_date_idx ON transactions(organization_id, transaction_date);
       CREATE INDEX IF NOT EXISTS transactions_org_status_idx ON transactions(organization_id, status);
       CREATE INDEX IF NOT EXISTS transactions_org_reference_idx ON transactions(organization_id, reference);
       CREATE INDEX IF NOT EXISTS transactions_org_source_idx ON transactions(organization_id, data_source_id);
-
-      CREATE TABLE IF NOT EXISTS duplicate_candidates (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        data_source_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE CASCADE,
-        existing_transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE,
-        candidate_transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE,
-        external_id VARCHAR(255) NOT NULL,
-        reason VARCHAR(255) NOT NULL,
-        status VARCHAR(50) NOT NULL DEFAULT 'FLAGGED',
-        metadata JSONB,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS duplicate_candidates_org_status_idx ON duplicate_candidates(organization_id, status);
-      CREATE INDEX IF NOT EXISTS duplicate_candidates_org_source_idx ON duplicate_candidates(organization_id, data_source_id);
     `);
   } finally {
     client.release();

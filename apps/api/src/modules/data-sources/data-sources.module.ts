@@ -1,17 +1,15 @@
 import { Module } from '@nestjs/common';
-import { OrgGuard } from '../../common/guards/org.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { DataSourcesController } from './data-sources.controller';
 import { DataSourcesService } from './data-sources.service';
 import { DATA_SOURCES_REPOSITORY } from './repositories/data-sources.repository.interface';
 import { DrizzleDataSourcesRepository } from './repositories/drizzle-data-sources.repository';
 
 @Module({
+  imports: [OrganizationsModule],
   controllers: [DataSourcesController],
   providers: [
     DataSourcesService,
-    OrgGuard,
-    RolesGuard,
     {
       provide: DATA_SOURCES_REPOSITORY,
       useClass: DrizzleDataSourcesRepository,

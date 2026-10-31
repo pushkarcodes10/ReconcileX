@@ -34,6 +34,15 @@ ReconcileX is structured as a scalable pnpm monorepo consisting of:
   - Last-ADMIN protection preventing organizations from being orphaned.
   - Cross-tenant data isolation: unassociated requests return `404 Not Found` to prevent IDOR probing.
   - Secure token-based invitation and password reset lifecycles.
+- **Phase A3: Data Sources & Transaction Catalog**:
+  - Organization-scoped `data_sources` catalog with canonical CSV column mappings.
+  - Safe deletion lifecycle: soft-deletion (`deleted_at`) for empty sources, blocking deletion with `409 Conflict` if transactions exist.
+  - Organization-level unique name constraints on active (non-deleted) data sources via partial PostgreSQL indexes.
+  - Database-enforced tenant isolation on `transactions` using composite foreign key constraint `(organization_id, data_source_id) REFERENCES data_sources(organization_id, id)`.
+  - Integer minor currency amounts (`BIGINT amount_minor`) avoiding floating-point rounding errors.
+  - Transaction read APIs supporting filtering (`sourceId`, `dateFrom`, `dateTo`, `amount`, `status`, `q`), multi-column sorting, and cursor-based & offset pagination.
+  - Empty table behavior returning HTTP 200 with empty array and valid pagination metadata.
+  - Role protection: Creation/Update/Deletion restricted to `ADMIN` and `FINANCE_MANAGER`; Read operations available to all organization roles.
 
 ---
 
@@ -55,10 +64,12 @@ reconcile-x/
 │       │   ├── health/                # Health & readiness probes
 │       │   ├── modules/
 │       │   │   ├── auth/              # Authentication, tokens, password hashing
-│       │   │   └── organizations/     # Multi-tenancy, memberships, invitations
+│       │   │   ├── data-sources/      # Data source CRUD, column mappings, soft delete
+│       │   │   ├── organizations/     # Multi-tenancy, memberships, invitations
+│       │   │   └── transactions/      # Transaction catalog & paginated read APIs
 │       │   ├── app.module.ts          # Main application module
 │       │   └── main.ts                # Bootstrap, cookie parser & Swagger
-│       ├── test/                      # Vitest test suite (30 unit & integration tests)
+│       ├── test/                      # Vitest test suite (51 unit & integration tests)
 │       ├── package.json
 │       ├── tsconfig.json
 │       └── vitest.config.ts
@@ -66,7 +77,7 @@ reconcile-x/
 │   └── db/
 │       ├── drizzle/                   # Drizzle migration files (.sql)
 │       ├── src/
-│       │   ├── schema/                # Users, orgs, memberships, tokens, resets
+│       │   ├── schema/                # Users, orgs, memberships, data-sources, transactions
 │       │   └── index.ts               # Database client & exports
 │       ├── drizzle.config.ts
 │       ├── package.json
@@ -131,12 +142,18 @@ Key environment variables:
 
 ---
 
-### 3. Database Migration & Docker
+### 3. Database Migration & Schema Setup
 
-Start PostgreSQL container:
+Start the containerized PostgreSQL database:
 
 ```powershell
 pnpm run docker:up
+```
+
+Generate database migrations (if modifying schemas):
+
+```powershell
+pnpm run db:generate
 ```
 
 Apply database migrations:
@@ -171,7 +188,7 @@ Interactive Swagger documentation is available at:
 Run all test suites and code linters from the root directory:
 
 ```powershell
-# Run all Vitest unit and integration tests (30 tests across 6 suites)
+# Run all Vitest unit and integration tests (51 tests across 8 suites)
 pnpm test
 
 # Run TypeScript typechecking across all workspace packages
@@ -186,229 +203,176 @@ pnpm run format:check
 
 ---
 
-## End-to-End API Testing Guide (Phase A2)
+## Data Sources & Transactions API Guide (Phase A3)
 
-Use the following PowerShell or `curl` commands to test the full authentication and organization lifecycle.
+### Canonical Column Mapping Structure
 
-### 1. User & Organization Registration
-
-Registers a new user, creates their initial organization, and assigns them the `ADMIN` role.
-
-```powershell
-$registerBody = @{
-  email = "alice@acme.com"
-  password = "SecurePassword123!"
-  name = "Alice Admin"
-  organizationName = "Acme Corp"
-} | ConvertTo-Json
-
-$registerResponse = Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/register" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body $registerBody `
-  -SessionVariable session
-
-$registerResponse
-```
-
-**Expected Response (201 Created):**
+Each data source defines a `column_mapping` JSON object mapping raw CSV header names to canonical transaction fields:
 
 ```json
 {
-  "user": {
-    "id": "...",
-    "email": "alice@acme.com",
-    "name": "Alice Admin",
-    "status": "ACTIVE"
-  },
-  "organization": {
-    "id": "...",
-    "name": "Acme Corp",
-    "slug": "acme-corp",
-    "role": "ADMIN"
+  "external_id": "Order ID",
+  "amount": "Transaction Amount",
+  "date": "Payment Date",
+  "currency": "Currency",
+  "reference": "Customer Reference",
+  "external_txn_id": "Gateway Transaction ID",
+  "merchant_or_order_id": "Merchant Order ID",
+  "txn_type": "Transaction Type"
+}
+```
+
+- **Required Fields**: `external_id`, `amount`, `date`, `currency`
+- **Optional Fields**: `reference`, `external_txn_id`, `merchant_or_order_id`, `txn_type`
+
+---
+
+### End-to-End Example: Creating Two Data Sources in an Organization
+
+After logging in as an `ADMIN` or `FINANCE_MANAGER`:
+
+#### 1. Create Internal Orders Source (`INTERNAL_ORDERS`)
+
+```powershell
+$ordersSource = @{
+  name = "Shopify Store Orders"
+  type = "INTERNAL_ORDERS"
+  columnMapping = @{
+    external_id = "Order ID"
+    amount = "Gross Amount"
+    date = "Order Date"
+    currency = "Currency"
+    reference = "Customer Ref"
   }
-}
-```
-
-_Note: Sets `httpOnly` cookies for `access_token` and `refresh_token`._
-
----
-
-### 2. User Login
-
-```powershell
-$loginBody = @{
-  email = "alice@acme.com"
-  password = "SecurePassword123!"
 } | ConvertTo-Json
 
-$loginResponse = Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/login" `
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/orgs/$orgId/data-sources" `
   -Method Post `
   -ContentType "application/json" `
-  -Body $loginBody `
-  -SessionVariable session
-
-$loginResponse
+  -Body $ordersSource `
+  -WebSession $session
 ```
 
-**Expected Response (200 OK):**
+**Response (201 Created):**
 
 ```json
 {
-  "user": {
-    "id": "...",
-    "email": "alice@acme.com",
-    "name": "Alice Admin",
-    "status": "ACTIVE"
+  "id": "7f09f2d0-3bc8-43d9-93e1-a987d6e49221",
+  "organizationId": "d3b07384-d113-4638-b7c1-0c5a2982d1a3",
+  "name": "Shopify Store Orders",
+  "type": "INTERNAL_ORDERS",
+  "direction": "INCOMING",
+  "columnMapping": {
+    "external_id": "Order ID",
+    "amount": "Gross Amount",
+    "date": "Order Date",
+    "currency": "Currency",
+    "reference": "Customer Ref"
   },
-  "memberships": [
-    {
-      "organizationId": "...",
-      "organizationName": "Acme Corp",
-      "organizationSlug": "acme-corp",
-      "role": "ADMIN"
-    }
-  ]
+  "status": "ACTIVE",
+  "createdAt": "2026-10-31T15:00:00.000Z",
+  "updatedAt": "2026-10-31T15:00:00.000Z",
+  "deletedAt": null
 }
+```
+
+#### 2. Create Payment Gateway Source (`PAYMENT_GATEWAY`)
+
+```powershell
+$gatewaySource = @{
+  name = "Stripe Payments"
+  type = "PAYMENT_GATEWAY"
+  columnMapping = @{
+    external_id = "Charge ID"
+    amount = "Amount Charged"
+    date = "Created (UTC)"
+    currency = "Currency Code"
+    reference = "Metadata Invoice Ref"
+    external_txn_id = "Balance Transaction ID"
+  }
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/orgs/$orgId/data-sources" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $gatewaySource `
+  -WebSession $session
 ```
 
 ---
 
-### 3. Get Authenticated Profile (`/auth/me`)
+### Querying Data Sources
 
-Uses the active session cookies:
+#### List Data Sources with Filtering & Pagination:
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/me" `
+# Filter by type and status with pagination
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/orgs/$orgId/data-sources?type=PAYMENT_GATEWAY&status=ACTIVE&page=1&limit=10" `
   -Method Get `
   -WebSession $session
 ```
 
----
-
-### 4. Rotate Access Token via Refresh Token
+#### Get Specific Data Source:
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/refresh" `
-  -Method Post `
-  -WebSession $session
-```
-
-**Expected Response (200 OK):**
-
-```json
-{
-  "success": true
-}
-```
-
-_Note: Automatically rotates both the access token and the refresh token cookie. Old refresh tokens are invalidated._
-
----
-
-### 5. Multi-Tenant Organization Management
-
-#### List organizations:
-
-```powershell
-Invoke-RestMethod -Uri "http://localhost:3000/api/v1/organizations" `
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/orgs/$orgId/data-sources/$sourceId" `
   -Method Get `
   -WebSession $session
 ```
 
-#### Update organization name (Admin only):
+#### Safe Deletion:
 
 ```powershell
-$orgId = $loginResponse.memberships[0].organizationId
-
-$updateBody = @{
-  name = "Acme Global Industries"
-} | ConvertTo-Json
-
-Invoke-RestMethod -Uri "http://localhost:3000/api/v1/organizations/$orgId" `
-  -Method Patch `
-  -ContentType "application/json" `
-  -Body $updateBody `
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/orgs/$orgId/data-sources/$sourceId" `
+  -Method Delete `
   -WebSession $session
 ```
+
+- If no transactions exist: Soft-deletes the source (`deleted_at = NOW()`, `status = INACTIVE`).
+- If transactions exist: Returns `409 Conflict` blocking physical deletion and preventing orphan transactions.
 
 ---
 
-### 6. Member Invitations & RBAC
+### Querying Transactions
 
-#### Invite a new member as `ANALYST`:
+Transactions are scoped strictly by `organization_id`. CSV ingestion and row import workflow will be implemented in **Phase A4**.
+
+#### Query Transactions with Filters:
 
 ```powershell
-$inviteBody = @{
-  email = "bob@acme.com"
-  role = "ANALYST"
-} | ConvertTo-Json
-
-$invite = Invoke-RestMethod -Uri "http://localhost:3000/api/v1/organizations/$orgId/invitations" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body $inviteBody `
+# Query transactions with date range, minimum amount, and search query
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/orgs/$orgId/transactions?dateFrom=2026-01-01T00:00:00.000Z&dateTo=2026-01-31T23:59:59.999Z&minAmount=5000&status=UNMATCHED&q=INV-100&page=1&limit=20" `
+  -Method Get `
   -WebSession $session
-
-$invite
 ```
 
-**Expected Response (201 Created):**
+**Response Format (200 OK):**
 
 ```json
 {
-  "id": "...",
-  "organizationId": "...",
-  "email": "bob@acme.com",
-  "role": "ANALYST",
-  "token": "...",
-  "expiresAt": "..."
+  "data": [],
+  "total": 0,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 0,
+  "nextCursor": null,
+  "hasMore": false
 }
 ```
 
-#### Accept the invitation (registering Bob):
+#### Query Single Transaction Details:
 
 ```powershell
-$acceptBody = @{
-  token = $invite.token
-  password = "BobSecurePassword123!"
-  name = "Bob Analyst"
-} | ConvertTo-Json
-
-Invoke-RestMethod -Uri "http://localhost:3000/api/v1/invitations/accept" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body $acceptBody
-```
-
----
-
-### 7. Tenant Isolation Verification (IDOR Protection)
-
-When a user in Organization A attempts to access Organization B's members or resources:
-
-```powershell
-$fakeOrgId = [guid]::NewGuid().ToString()
-
-try {
-  Invoke-RestMethod -Uri "http://localhost:3000/api/v1/organizations/$fakeOrgId/members" `
-    -Method Get `
-    -WebSession $session
-} catch {
-  $_.Exception.Response.StatusCode # Returns 404 (Not Found)
-}
-```
-
-_Note: Returns `404 Not Found` rather than `403 Forbidden` to prevent malicious tenant enumeration._
-
----
-
-### 8. Logout & Session Invalidation
-
-```powershell
-Invoke-RestMethod -Uri "http://localhost:3000/api/v1/auth/logout" `
-  -Method Post `
+Invoke-RestMethod -Uri "http://localhost:3000/api/v1/orgs/$orgId/transactions/$transactionId" `
+  -Method Get `
   -WebSession $session
 ```
 
-_Note: Clears the cookies and marks the refresh token revoked in the database._
+Returns single transaction details including `normalizedPayload` and deduplication `fingerprint`.
+
+---
+
+## Current Scope & Limitations (Phase A3)
+
+- **Transaction Ingestion**: Transactions schema and read APIs are fully implemented. Writing imported transactions via CSV uploads, MinIO S3 object storage, row validation, and duplicate candidate quarantine will be delivered in **Phase A4**.
+- **Reconciliation Matching**: Matching algorithms (`packages/matching`) and reconciliation run execution will follow in **Phase A5** and **Phase A6**.

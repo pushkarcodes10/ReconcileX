@@ -64,7 +64,10 @@ async function bootstrap(): Promise<void> {
     .addTag('Organizations', 'Multi-tenant organization and membership management')
     .addTag('Data Sources', 'Data source configuration and canonical column mapping')
     .addTag('Transactions', 'Canonical transaction catalog and exploration')
-    .addTag('Duplicate Candidates', 'Flagged duplicate transaction candidates for quarantine inspection')
+    .addTag(
+      'Duplicate Candidates',
+      'Flagged duplicate transaction candidates for quarantine inspection',
+    )
     .addCookieAuth('access_token', {
       type: 'apiKey',
       in: 'cookie',
