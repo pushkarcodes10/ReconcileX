@@ -28,6 +28,14 @@ export class QueryTransactionsDto {
   dataSourceId?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by import ID',
+    example: 'd9b9a6b1-4f1b-4f9e-9d2a-1b2c3d4e5f6a',
+  })
+  @IsUUID()
+  @IsOptional()
+  importId?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by transaction status',
     enum: TransactionStatus,
   })
@@ -160,6 +168,9 @@ export class TransactionListItemDto {
 
   @ApiProperty({ description: 'Data Source UUID' })
   dataSourceId!: string;
+
+  @ApiPropertyOptional({ description: 'Import UUID' })
+  importId?: string | null;
 
   @ApiProperty({ description: 'External source identifier' })
   externalId!: string;

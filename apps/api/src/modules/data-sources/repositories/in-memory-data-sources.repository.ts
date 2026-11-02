@@ -121,4 +121,9 @@ export class InMemoryDataSourcesRepository implements IDataSourcesRepository {
   async countTransactionsByDataSourceId(_organizationId: string, id: string): Promise<number> {
     return this.transactionsCountMap.get(id) || 0;
   }
+
+  clear(): void {
+    this.dataSources = [];
+    this.transactionsCountMap.clear();
+  }
 }

@@ -24,6 +24,14 @@ export interface AppConfig {
     database: string;
     url?: string;
   };
+  storage: {
+    endpoint: string;
+    port: number;
+    useSsl: boolean;
+    accessKey: string;
+    secretKey: string;
+    bucket: string;
+  };
 }
 
 export default registerAs('app', (): AppConfig => {
@@ -59,6 +67,14 @@ export default registerAs('app', (): AppConfig => {
       password: process.env.POSTGRES_PASSWORD || 'postgres',
       database: process.env.POSTGRES_DB || 'reconcilex',
       url: databaseUrl,
+    },
+    storage: {
+      endpoint: process.env.MINIO_ENDPOINT || 'localhost',
+      port: parseInt(process.env.MINIO_PORT || '9000', 10),
+      useSsl: process.env.MINIO_USE_SSL === 'true',
+      accessKey: process.env.MINIO_ROOT_USER || 'minioadmin',
+      secretKey: process.env.MINIO_ROOT_PASSWORD || 'minioadmin',
+      bucket: process.env.MINIO_BUCKET || 'reconcilex-imports',
     },
   };
 });

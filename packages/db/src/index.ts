@@ -163,10 +163,48 @@ export async function initializeSchema(pool: DatabasePool): Promise<void> {
       CREATE INDEX IF NOT EXISTS data_sources_org_status_idx ON data_sources(organization_id, status);
       CREATE INDEX IF NOT EXISTS data_sources_org_idx ON data_sources(organization_id);
 
+      CREATE TABLE IF NOT EXISTS imports (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        data_source_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE RESTRICT,
+        storage_key VARCHAR(512) NOT NULL,
+        original_filename VARCHAR(255) NOT NULL,
+        content_sha256 VARCHAR(64) NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'QUEUED',
+        row_count INTEGER NOT NULL DEFAULT 0,
+        valid_count INTEGER NOT NULL DEFAULT 0,
+        invalid_count INTEGER NOT NULL DEFAULT 0,
+        duplicate_count INTEGER NOT NULL DEFAULT 0,
+        error_summary JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMPTZ,
+        CONSTRAINT imports_org_datasource_fk FOREIGN KEY (organization_id, data_source_id) REFERENCES data_sources(organization_id, id) ON DELETE RESTRICT
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS imports_org_source_sha256_idx ON imports(organization_id, data_source_id, content_sha256);
+      CREATE INDEX IF NOT EXISTS imports_org_source_idx ON imports(organization_id, data_source_id);
+      CREATE INDEX IF NOT EXISTS imports_org_status_idx ON imports(organization_id, status);
+      CREATE INDEX IF NOT EXISTS imports_org_created_idx ON imports(organization_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS import_row_errors (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        import_id UUID NOT NULL REFERENCES imports(id) ON DELETE CASCADE,
+        row_number INTEGER NOT NULL,
+        field VARCHAR(100),
+        code VARCHAR(100) NOT NULL,
+        raw_value TEXT,
+        message TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS import_row_errors_org_import_idx ON import_row_errors(organization_id, import_id);
+      CREATE INDEX IF NOT EXISTS import_row_errors_import_row_idx ON import_row_errors(import_id, row_number);
+
       CREATE TABLE IF NOT EXISTS transactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         data_source_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE RESTRICT,
+        import_id UUID REFERENCES imports(id) ON DELETE SET NULL,
         external_id VARCHAR(255) NOT NULL,
         amount_minor BIGINT NOT NULL,
         currency VARCHAR(3) NOT NULL,
@@ -187,6 +225,25 @@ export async function initializeSchema(pool: DatabasePool): Promise<void> {
       CREATE INDEX IF NOT EXISTS transactions_org_status_idx ON transactions(organization_id, status);
       CREATE INDEX IF NOT EXISTS transactions_org_reference_idx ON transactions(organization_id, reference);
       CREATE INDEX IF NOT EXISTS transactions_org_source_idx ON transactions(organization_id, data_source_id);
+      CREATE INDEX IF NOT EXISTS transactions_org_import_idx ON transactions(organization_id, import_id);
+
+      CREATE TABLE IF NOT EXISTS duplicate_candidates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        import_id UUID NOT NULL REFERENCES imports(id) ON DELETE CASCADE,
+        data_source_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE RESTRICT,
+        existing_transaction_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
+        candidate_fingerprint VARCHAR(64),
+        external_id VARCHAR(255) NOT NULL,
+        row_number INTEGER,
+        reason VARCHAR(100) NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'FLAGGED',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS duplicate_candidates_org_import_idx ON duplicate_candidates(organization_id, import_id);
+      CREATE INDEX IF NOT EXISTS duplicate_candidates_org_status_idx ON duplicate_candidates(organization_id, status);
+      CREATE INDEX IF NOT EXISTS duplicate_candidates_org_source_idx ON duplicate_candidates(organization_id, data_source_id);
     `);
   } finally {
     client.release();

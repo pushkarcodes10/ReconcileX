@@ -10,7 +10,9 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DataSourcesModule } from './modules/data-sources/data-sources.module';
+import { ImportsModule } from './modules/imports/imports.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 
 @Module({
@@ -66,6 +68,8 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
     OrganizationsModule,
     DataSourcesModule,
     TransactionsModule,
+    StorageModule,
+    ImportsModule,
   ],
   providers: [
     {

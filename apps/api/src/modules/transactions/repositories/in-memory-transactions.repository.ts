@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Transaction } from '@reconcilex/db';
+import { NewTransaction, Transaction } from '@reconcilex/db';
+import { randomUUID } from 'crypto';
 import {
   PaginatedTransactionsResponse,
   QueryTransactionsDto,
@@ -38,6 +39,10 @@ export class InMemoryTransactionsRepository implements ITransactionsRepository {
     const sourceId = query.sourceId || query.dataSourceId;
     if (sourceId) {
       filtered = filtered.filter((t) => t.dataSourceId === sourceId);
+    }
+
+    if (query.importId) {
+      filtered = filtered.filter((t) => t.importId === query.importId);
     }
 
     if (query.status) {
@@ -129,6 +134,7 @@ export class InMemoryTransactionsRepository implements ITransactionsRepository {
       id: t.id,
       organizationId: t.organizationId,
       dataSourceId: t.dataSourceId,
+      importId: t.importId,
       externalId: t.externalId,
       amountMinor: t.amountMinor,
       currency: t.currency,
@@ -170,5 +176,53 @@ export class InMemoryTransactionsRepository implements ITransactionsRepository {
   async findById(organizationId: string, id: string): Promise<Transaction | null> {
     const txn = this.transactions.find((t) => t.organizationId === organizationId && t.id === id);
     return txn ? { ...txn } : null;
+  }
+
+  async createBatch(organizationId: string, newTxns: NewTransaction[]): Promise<Transaction[]> {
+    const created: Transaction[] = newTxns.map((nt) => {
+      const now = new Date();
+      const txn: Transaction = {
+        id: nt.id || randomUUID(),
+        organizationId,
+        dataSourceId: nt.dataSourceId,
+        importId: nt.importId ?? null,
+        externalId: nt.externalId,
+        amountMinor: nt.amountMinor,
+        currency: nt.currency,
+        transactionDate:
+          nt.transactionDate instanceof Date ? nt.transactionDate : new Date(nt.transactionDate),
+        reference: nt.reference ?? null,
+        externalTxnId: nt.externalTxnId ?? null,
+        merchantOrOrderId: nt.merchantOrOrderId ?? null,
+        txnType: nt.txnType ?? null,
+        status: nt.status || 'UNMATCHED',
+        normalizedPayload: (nt.normalizedPayload as Record<string, unknown>) ?? null,
+        fingerprint: nt.fingerprint ?? null,
+        createdAt: nt.createdAt instanceof Date ? nt.createdAt : now,
+        updatedAt: nt.updatedAt instanceof Date ? nt.updatedAt : now,
+      };
+      this.transactions.push(txn);
+      return txn;
+    });
+
+    return created;
+  }
+
+  async findByExternalIds(
+    organizationId: string,
+    dataSourceId: string,
+    externalIds: string[],
+  ): Promise<Transaction[]> {
+    const idSet = new Set(externalIds);
+    return this.transactions.filter(
+      (t) =>
+        t.organizationId === organizationId &&
+        t.dataSourceId === dataSourceId &&
+        idSet.has(t.externalId),
+    );
+  }
+
+  clear(): void {
+    this.transactions = [];
   }
 }

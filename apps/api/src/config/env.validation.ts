@@ -99,6 +99,42 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   DATABASE_URL?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  MINIO_ENDPOINT: string = 'localhost';
+
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  @IsOptional()
+  MINIO_PORT: number = 9000;
+
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  @IsOptional()
+  MINIO_CONSOLE_PORT: number = 9001;
+
+  @IsBoolean()
+  @IsOptional()
+  MINIO_USE_SSL: boolean = false;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  MINIO_ROOT_USER: string = 'minioadmin';
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  MINIO_ROOT_PASSWORD: string = 'minioadmin';
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  MINIO_BUCKET: string = 'reconcilex-imports';
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {

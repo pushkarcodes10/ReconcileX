@@ -10,6 +10,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { dataSources } from './data-sources';
+import { imports } from './imports';
 import { organizations } from './organizations';
 
 export const TransactionStatus = {
@@ -34,6 +35,7 @@ export const transactions = pgTable(
     dataSourceId: uuid('data_source_id')
       .notNull()
       .references(() => dataSources.id, { onDelete: 'restrict' }),
+    importId: uuid('import_id').references(() => imports.id, { onDelete: 'set null' }),
     externalId: varchar('external_id', { length: 255 }).notNull(),
     amountMinor: bigint('amount_minor', { mode: 'number' }).notNull(),
     currency: varchar('currency', { length: 3 }).notNull(),
@@ -65,6 +67,7 @@ export const transactions = pgTable(
     index('transactions_org_status_idx').on(table.organizationId, table.status),
     index('transactions_org_reference_idx').on(table.organizationId, table.reference),
     index('transactions_org_source_idx').on(table.organizationId, table.dataSourceId),
+    index('transactions_org_import_idx').on(table.organizationId, table.importId),
   ],
 );
 

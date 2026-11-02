@@ -8,7 +8,9 @@ import {
   eq,
   gte,
   ilike,
+  inArray,
   lte,
+  NewTransaction,
   or,
   Transaction,
   transactions,
@@ -56,6 +58,10 @@ export class DrizzleTransactionsRepository implements ITransactionsRepository {
     const sourceId = query.sourceId || query.dataSourceId;
     if (sourceId) {
       conditions.push(eq(transactions.dataSourceId, sourceId));
+    }
+
+    if (query.importId) {
+      conditions.push(eq(transactions.importId, query.importId));
     }
 
     if (query.status) {
@@ -154,6 +160,7 @@ export class DrizzleTransactionsRepository implements ITransactionsRepository {
         id: transactions.id,
         organizationId: transactions.organizationId,
         dataSourceId: transactions.dataSourceId,
+        importId: transactions.importId,
         externalId: transactions.externalId,
         amountMinor: transactions.amountMinor,
         currency: transactions.currency,
@@ -207,5 +214,28 @@ export class DrizzleTransactionsRepository implements ITransactionsRepository {
       .where(and(eq(transactions.organizationId, organizationId), eq(transactions.id, id)));
 
     return record || null;
+  }
+
+  async createBatch(organizationId: string, newTxns: NewTransaction[]): Promise<Transaction[]> {
+    if (newTxns.length === 0) return [];
+    return this.db.insert(transactions).values(newTxns).returning();
+  }
+
+  async findByExternalIds(
+    organizationId: string,
+    dataSourceId: string,
+    externalIds: string[],
+  ): Promise<Transaction[]> {
+    if (externalIds.length === 0) return [];
+    return this.db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.organizationId, organizationId),
+          eq(transactions.dataSourceId, dataSourceId),
+          inArray(transactions.externalId, externalIds),
+        ),
+      );
   }
 }
