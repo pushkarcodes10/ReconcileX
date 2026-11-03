@@ -10,3 +10,7 @@ export * from './refresh-tokens';
 export * from './roles';
 export * from './transactions';
 export * from './users';
+export * from './reconciliation-runs';
+export * from './matches';
+export * from './exceptions';
+export * from './exception-comments';

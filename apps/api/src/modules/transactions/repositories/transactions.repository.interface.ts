@@ -15,4 +15,15 @@ export interface ITransactionsRepository {
     dataSourceId: string,
     externalIds: string[],
   ): Promise<Transaction[]>;
+  findEligibleForReconciliation(
+    organizationId: string,
+    dataSourceId: string,
+    dateFrom: Date,
+    dateTo: Date,
+  ): Promise<Transaction[]>;
+  updateStatuses(
+    organizationId: string,
+    transactionIds: string[],
+    status: string,
+  ): Promise<void>;
 }

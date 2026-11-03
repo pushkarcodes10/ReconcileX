@@ -14,6 +14,8 @@ import { ImportsModule } from './modules/imports/imports.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
+import { ExceptionsModule } from './modules/exceptions/exceptions.module';
 
 @Module({
   imports: [
@@ -70,6 +72,8 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
     TransactionsModule,
     StorageModule,
     ImportsModule,
+    ReconciliationModule,
+    ExceptionsModule,
   ],
   providers: [
     {

@@ -222,6 +222,43 @@ export class InMemoryTransactionsRepository implements ITransactionsRepository {
     );
   }
 
+  async findEligibleForReconciliation(
+    organizationId: string,
+    dataSourceId: string,
+    dateFrom: Date,
+    dateTo: Date,
+  ): Promise<Transaction[]> {
+    const fromMs = dateFrom.getTime();
+    const toMs = dateTo.getTime();
+    return this.transactions
+      .filter((t) => {
+        if (t.organizationId !== organizationId || t.dataSourceId !== dataSourceId) {
+          return false;
+        }
+        if (t.status === 'MATCHED') {
+          return false;
+        }
+        const txnTime = new Date(t.transactionDate).getTime();
+        return txnTime >= fromMs && txnTime <= toMs;
+      })
+      .map((t) => ({ ...t }));
+  }
+
+  async updateStatuses(
+    organizationId: string,
+    transactionIds: string[],
+    status: string,
+  ): Promise<void> {
+    const idSet = new Set(transactionIds);
+    const now = new Date();
+    for (const t of this.transactions) {
+      if (t.organizationId === organizationId && idSet.has(t.id)) {
+        t.status = status;
+        t.updatedAt = now;
+      }
+    }
+  }
+
   clear(): void {
     this.transactions = [];
   }

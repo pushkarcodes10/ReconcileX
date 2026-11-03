@@ -244,6 +244,89 @@ export async function initializeSchema(pool: DatabasePool): Promise<void> {
       CREATE INDEX IF NOT EXISTS duplicate_candidates_org_import_idx ON duplicate_candidates(organization_id, import_id);
       CREATE INDEX IF NOT EXISTS duplicate_candidates_org_status_idx ON duplicate_candidates(organization_id, status);
       CREATE INDEX IF NOT EXISTS duplicate_candidates_org_source_idx ON duplicate_candidates(organization_id, data_source_id);
+
+      CREATE TABLE IF NOT EXISTS reconciliation_runs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        display_id VARCHAR(50) NOT NULL,
+        source_a_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE RESTRICT,
+        source_b_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE RESTRICT,
+        status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+        started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMPTZ,
+        config JSONB NOT NULL,
+        total_source_a INTEGER NOT NULL DEFAULT 0,
+        total_source_b INTEGER NOT NULL DEFAULT 0,
+        exact_match_count INTEGER NOT NULL DEFAULT 0,
+        potential_match_count INTEGER NOT NULL DEFAULT 0,
+        unmatched_count INTEGER NOT NULL DEFAULT 0,
+        idempotency_key VARCHAR(255),
+        created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT reconciliation_runs_org_source_a_fk FOREIGN KEY (organization_id, source_a_id) REFERENCES data_sources(organization_id, id) ON DELETE RESTRICT,
+        CONSTRAINT reconciliation_runs_org_source_b_fk FOREIGN KEY (organization_id, source_b_id) REFERENCES data_sources(organization_id, id) ON DELETE RESTRICT
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS reconciliation_runs_org_display_id_idx ON reconciliation_runs(organization_id, display_id);
+      CREATE INDEX IF NOT EXISTS reconciliation_runs_org_status_idx ON reconciliation_runs(organization_id, status);
+      CREATE INDEX IF NOT EXISTS reconciliation_runs_org_created_idx ON reconciliation_runs(organization_id, created_at);
+      CREATE INDEX IF NOT EXISTS reconciliation_runs_org_idempotency_idx ON reconciliation_runs(organization_id, idempotency_key);
+
+      CREATE TABLE IF NOT EXISTS matches (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        run_id UUID NOT NULL REFERENCES reconciliation_runs(id) ON DELETE CASCADE,
+        transaction_a_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+        transaction_b_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+        classification VARCHAR(50) NOT NULL,
+        score INTEGER NOT NULL,
+        reasons JSONB NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+        confirmed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        confirmed_at TIMESTAMPTZ,
+        rejected_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        rejected_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS matches_run_txna_txnb_idx ON matches(run_id, transaction_a_id, transaction_b_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS matches_run_txn_a_active_idx ON matches(run_id, transaction_a_id) WHERE status != 'REJECTED';
+      CREATE UNIQUE INDEX IF NOT EXISTS matches_run_txn_b_active_idx ON matches(run_id, transaction_b_id) WHERE status != 'REJECTED';
+      CREATE INDEX IF NOT EXISTS matches_org_run_idx ON matches(organization_id, run_id);
+      CREATE INDEX IF NOT EXISTS matches_org_status_idx ON matches(organization_id, status);
+      CREATE INDEX IF NOT EXISTS matches_org_classification_idx ON matches(organization_id, classification);
+
+      CREATE TABLE IF NOT EXISTS exceptions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        run_id UUID NOT NULL REFERENCES reconciliation_runs(id) ON DELETE CASCADE,
+        transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE,
+        status VARCHAR(50) NOT NULL DEFAULT 'OPEN',
+        assignee_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        resolution_reason TEXT,
+        resolution_action VARCHAR(100),
+        resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        resolved_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS exceptions_org_status_idx ON exceptions(organization_id, status);
+      CREATE INDEX IF NOT EXISTS exceptions_org_run_idx ON exceptions(organization_id, run_id);
+      CREATE INDEX IF NOT EXISTS exceptions_org_assignee_idx ON exceptions(organization_id, assignee_id);
+      CREATE INDEX IF NOT EXISTS exceptions_org_created_idx ON exceptions(organization_id, created_at);
+      CREATE INDEX IF NOT EXISTS exceptions_run_txn_idx ON exceptions(run_id, transaction_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS exceptions_run_txn_open_idx ON exceptions(run_id, transaction_id) WHERE transaction_id IS NOT NULL AND status != 'RESOLVED';
+
+      CREATE TABLE IF NOT EXISTS exception_comments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        exception_id UUID NOT NULL REFERENCES exceptions(id) ON DELETE CASCADE,
+        author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS exception_comments_exception_created_idx ON exception_comments(exception_id, created_at);
+      CREATE INDEX IF NOT EXISTS exception_comments_org_created_idx ON exception_comments(organization_id, created_at);
     `);
   } finally {
     client.release();

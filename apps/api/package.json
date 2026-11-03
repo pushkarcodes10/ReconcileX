@@ -23,6 +23,7 @@
     "@nestjs/swagger": "^8.1.1",
     "@reconcilex/csv": "workspace:*",
     "@reconcilex/db": "workspace:*",
+    "@reconcilex/matching": "workspace:*",
     "argon2": "^0.45.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",

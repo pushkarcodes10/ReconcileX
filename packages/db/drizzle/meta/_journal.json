@@ -22,6 +22,20 @@
       "when": 1793444655735,
       "tag": "0002_brown_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793689148546,
+      "tag": "0003_legal_giant_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793691473877,
+      "tag": "0004_burly_captain_britain",
+      "breakpoints": true
     }
   ]
 }

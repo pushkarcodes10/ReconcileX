@@ -68,6 +68,8 @@ async function bootstrap(): Promise<void> {
       'Duplicate Candidates',
       'Flagged duplicate transaction candidates for quarantine inspection',
     )
+    .addTag('Reconciliation', 'Reconciliation runs, matches, and confirm/reject operations')
+    .addTag('Exceptions', 'Exception management, lifecycle state machine, assignments, and resolution')
     .addCookieAuth('access_token', {
       type: 'apiKey',
       in: 'cookie',

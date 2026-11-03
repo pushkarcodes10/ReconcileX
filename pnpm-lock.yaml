@@ -211,6 +211,9 @@ importers:
       '@reconcilex/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@reconcilex/matching':
+        specifier: workspace:*
+        version: link:../../packages/matching
       argon2:
         specifier: ^0.45.1
         version: 0.45.1

@@ -12,6 +12,7 @@ import {
   lte,
   NewTransaction,
   or,
+  sql,
   Transaction,
   transactions,
 } from '@reconcilex/db';
@@ -235,6 +236,43 @@ export class DrizzleTransactionsRepository implements ITransactionsRepository {
           eq(transactions.organizationId, organizationId),
           eq(transactions.dataSourceId, dataSourceId),
           inArray(transactions.externalId, externalIds),
+        ),
+      );
+  }
+
+  async findEligibleForReconciliation(
+    organizationId: string,
+    dataSourceId: string,
+    dateFrom: Date,
+    dateTo: Date,
+  ): Promise<Transaction[]> {
+    return this.db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.organizationId, organizationId),
+          eq(transactions.dataSourceId, dataSourceId),
+          gte(transactions.transactionDate, dateFrom),
+          lte(transactions.transactionDate, dateTo),
+          sql`${transactions.status} != 'MATCHED'`,
+        ),
+      );
+  }
+
+  async updateStatuses(
+    organizationId: string,
+    transactionIds: string[],
+    status: string,
+  ): Promise<void> {
+    if (transactionIds.length === 0) return;
+    await this.db
+      .update(transactions)
+      .set({ status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(transactions.organizationId, organizationId),
+          inArray(transactions.id, transactionIds),
         ),
       );
   }
