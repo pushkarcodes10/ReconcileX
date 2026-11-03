@@ -1,0 +1,897 @@
+/* ReconcileX Landing Page Styles
+   Reference 3: Modern Editorial SaaS (Spacious, bold typography, artistic gradient canvas, rounded pills)
+*/
+
+.rx-landing {
+  min-height: 100vh;
+  background-color: #FFFFFF;
+  color: var(--rx-text-primary);
+  font-family: var(--rx-font-sans);
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Container */
+.rx-landing-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* -----------------------------------------
+   1. NAVIGATION BAR
+----------------------------------------- */
+.rx-landing-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(229, 231, 226, 0.6);
+  transition: all 0.2s ease;
+}
+
+.rx-landing-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+}
+
+.rx-landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+  color: var(--rx-text-primary);
+  text-decoration: none;
+}
+
+.rx-landing-links {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rx-landing-links a {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--rx-text-secondary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.rx-landing-links a:hover {
+  color: var(--rx-text-primary);
+}
+
+.rx-landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.rx-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.625rem 1.25rem;
+  border-radius: 9999px;
+  text-decoration: none;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rx-pill-btn:hover {
+  transform: translateY(-1px);
+}
+
+.rx-pill-btn-ghost {
+  color: var(--rx-text-primary);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.rx-pill-btn-ghost:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.rx-pill-btn-dark {
+  background-color: var(--rx-dark);
+  color: #FFFFFF;
+  border: 1px solid var(--rx-dark);
+}
+
+.rx-pill-btn-dark:hover {
+  background-color: #2D322C;
+  border-color: #2D322C;
+  box-shadow: 0 4px 14px rgba(32, 35, 31, 0.2);
+}
+
+.rx-pill-btn-lime {
+  background-color: var(--rx-lime);
+  color: var(--rx-lime-text);
+  border: 1px solid var(--rx-lime);
+}
+
+.rx-pill-btn-lime:hover {
+  background-color: var(--rx-lime-hover);
+  border-color: var(--rx-lime-hover);
+  box-shadow: 0 4px 14px rgba(242, 245, 0, 0.35);
+}
+
+.rx-pill-btn-outline {
+  background: #FFFFFF;
+  color: var(--rx-text-primary);
+  border: 1px solid var(--rx-border);
+}
+
+.rx-pill-btn-outline:hover {
+  border-color: var(--rx-text-primary);
+  background: #FAF9F6;
+}
+
+.rx-landing-mobile-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  color: var(--rx-text-primary);
+}
+
+/* -----------------------------------------
+   2. HERO SECTION
+----------------------------------------- */
+.rx-landing-hero {
+  padding: 4.5rem 0 3.5rem;
+  text-align: center;
+}
+
+.rx-landing-rating-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #FAF9F6;
+  border: 1px solid var(--rx-border);
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--rx-text-secondary);
+  margin-bottom: 1.75rem;
+}
+
+.rx-landing-rating-pill .star-gold {
+  color: #EAB308;
+}
+
+.rx-landing-hero-title {
+  font-size: clamp(2.5rem, 5.5vw, 4.25rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  color: var(--rx-text-primary);
+  max-width: 860px;
+  margin: 0 auto 1.5rem;
+}
+
+.rx-landing-hero-subtitle {
+  font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+  line-height: 1.55;
+  color: var(--rx-text-secondary);
+  max-width: 680px;
+  margin: 0 auto 2.25rem;
+}
+
+.rx-landing-hero-ctas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 3.5rem;
+  flex-wrap: wrap;
+}
+
+/* Hero Visual Canvas (Artistic Flowing Mesh Gradient) */
+.rx-hero-canvas {
+  position: relative;
+  border-radius: 28px;
+  padding: 3.5rem 2rem;
+  background: radial-gradient(circle at 20% 30%, #A9C6DE 0%, transparent 45%),
+              radial-gradient(circle at 80% 20%, #A8B394 0%, transparent 45%),
+              radial-gradient(circle at 50% 85%, #F0ECA0 0%, transparent 50%),
+              radial-gradient(circle at 15% 85%, #E6D2E0 0%, transparent 40%),
+              linear-gradient(135deg, #7C9885 0%, #4D6B57 50%, #2A4032 100%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 20px 50px rgba(42, 64, 50, 0.2);
+  overflow: hidden;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.rx-hero-canvas-art {
+  position: absolute;
+  inset: 0;
+  opacity: 0.85;
+  background-image: 
+    radial-gradient(at 10% 20%, rgba(169, 198, 222, 0.8) 0px, transparent 50%),
+    radial-gradient(at 90% 15%, rgba(240, 236, 160, 0.7) 0px, transparent 50%),
+    radial-gradient(at 30% 90%, rgba(230, 210, 224, 0.7) 0px, transparent 50%),
+    radial-gradient(at 75% 75%, rgba(168, 179, 148, 0.9) 0px, transparent 50%);
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+/* Floating AI Engine Card Inside Canvas */
+.rx-hero-agent-card {
+  position: relative;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 22px;
+  padding: 1.75rem 2rem;
+  max-width: 680px;
+  margin: 0 auto;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  text-align: left;
+}
+
+.rx-hero-agent-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--rx-dark);
+  color: var(--rx-lime);
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  margin-bottom: 1rem;
+}
+
+.rx-hero-agent-input {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #FAF9F6;
+  border: 1px solid var(--rx-border);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.rx-hero-agent-input-text {
+  flex: 1;
+  font-size: 0.9375rem;
+  color: var(--rx-text-primary);
+  font-weight: 500;
+}
+
+.rx-hero-agent-input-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--rx-dark);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.rx-hero-agent-input-btn:hover {
+  transform: scale(1.05);
+}
+
+.rx-hero-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.rx-hero-mini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.rx-hero-mini-pill.pill-green {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
+}
+
+.rx-hero-mini-pill.pill-blue {
+  background: #E0F2FE;
+  color: #0369A1;
+  border: 1px solid #BAE6FD;
+}
+
+.rx-hero-mini-pill.pill-yellow {
+  background: #FEF9C3;
+  color: #854D0E;
+  border: 1px solid #FEF08A;
+}
+
+.rx-hero-agent-footer {
+  font-size: 0.8125rem;
+  color: var(--rx-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* -----------------------------------------
+   3. SOCIAL PROOF & LOGOS RIBBON
+----------------------------------------- */
+.rx-landing-logos {
+  padding: 3.5rem 0;
+  border-bottom: 1px solid var(--rx-border);
+  text-align: center;
+}
+
+.rx-logos-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rx-text-muted);
+  margin-bottom: 1.75rem;
+}
+
+.rx-logos-grid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3.5rem;
+  flex-wrap: wrap;
+}
+
+.rx-logo-item {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #949990;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.rx-logo-item:hover {
+  color: var(--rx-text-primary);
+}
+
+/* -----------------------------------------
+   4. EDITORIAL TESTIMONIAL FEATURE (Ref 3)
+----------------------------------------- */
+.rx-landing-quote-section {
+  padding: 5rem 0 3.5rem;
+}
+
+.rx-quote-card {
+  position: relative;
+  background: radial-gradient(circle at 10% 20%, #EBF4DD 0%, #E3EAD8 40%, #DCE8EE 100%);
+  border-radius: 28px;
+  padding: 3.5rem;
+  border: 1px solid rgba(168, 179, 148, 0.3);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3rem;
+  align-items: center;
+}
+
+.rx-quote-text {
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  color: #1C231E;
+  margin-bottom: 1.5rem;
+}
+
+.rx-quote-author {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.rx-quote-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #20231F;
+  color: var(--rx-lime);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.rx-quote-meta h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.rx-quote-meta p {
+  font-size: 0.875rem;
+  color: #4D574E;
+  margin: 0;
+}
+
+/* -----------------------------------------
+   5. BENTO METRICS HIGHLIGHTS (3 Cards)
+----------------------------------------- */
+.rx-landing-metrics {
+  padding: 4.5rem 0;
+}
+
+.rx-section-header {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto 3rem;
+}
+
+.rx-section-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rx-text-secondary);
+  background: #FAF9F6;
+  border: 1px solid var(--rx-border);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  margin-bottom: 1rem;
+}
+
+.rx-section-title {
+  font-size: clamp(2rem, 3.5vw, 2.75rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+}
+
+.rx-section-subtitle {
+  font-size: 1.05rem;
+  color: var(--rx-text-secondary);
+  line-height: 1.6;
+}
+
+.rx-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.rx-metric-card {
+  background: var(--rx-surface-subtle);
+  border: 1px solid var(--rx-border);
+  border-radius: 20px;
+  padding: 2.25rem;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.rx-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--rx-shadow-md);
+  border-color: #D3D7CE;
+}
+
+.rx-metric-value {
+  font-size: clamp(2.75rem, 4.5vw, 3.75rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--rx-text-primary);
+  margin-bottom: 0.875rem;
+}
+
+.rx-metric-label {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.rx-metric-desc {
+  font-size: 0.875rem;
+  color: var(--rx-text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* -----------------------------------------
+   6. FEATURE DEEP-DIVE & INTERACTIVE PREVIEW
+----------------------------------------- */
+.rx-landing-features {
+  padding: 4.5rem 0;
+}
+
+.rx-features-split {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 3.5rem;
+  align-items: center;
+}
+
+.rx-feature-item {
+  padding: 1.25rem;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 0.5rem;
+}
+
+.rx-feature-item.active {
+  background: #FAF9F6;
+  border-color: var(--rx-border);
+  box-shadow: var(--rx-shadow-sm);
+}
+
+.rx-feature-item-num {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: var(--rx-text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.rx-feature-item.active .rx-feature-item-num {
+  color: var(--rx-dark);
+}
+
+.rx-feature-item-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.rx-feature-item-desc {
+  font-size: 0.875rem;
+  color: var(--rx-text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Feature Preview Box */
+.rx-feature-preview-box {
+  background: #FAF9F6;
+  border: 1px solid var(--rx-border);
+  border-radius: 24px;
+  padding: 2.25rem;
+  box-shadow: var(--rx-shadow-md);
+  position: relative;
+}
+
+.rx-preview-pill-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rx-border);
+}
+
+.rx-preview-match-card {
+  background: #FFFFFF;
+  border: 1px solid var(--rx-border);
+  border-radius: 16px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--rx-shadow-sm);
+}
+
+.rx-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+/* -----------------------------------------
+   7. HOW IT WORKS (Workflow Section)
+----------------------------------------- */
+.rx-landing-workflow {
+  padding: 4.5rem 0;
+  background: #FAF9F6;
+  border-top: 1px solid var(--rx-border);
+  border-bottom: 1px solid var(--rx-border);
+}
+
+.rx-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.rx-workflow-step {
+  background: #FFFFFF;
+  border: 1px solid var(--rx-border);
+  border-radius: 18px;
+  padding: 1.75rem;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.rx-workflow-step:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--rx-shadow-sm);
+}
+
+.rx-workflow-step-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--rx-dark);
+  color: var(--rx-lime);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9375rem;
+  margin-bottom: 1.25rem;
+}
+
+/* -----------------------------------------
+   8. BIG IMPACT NUMBER (Reference 3 Finale)
+----------------------------------------- */
+.rx-landing-impact {
+  padding: 6rem 0 5rem;
+  text-align: center;
+}
+
+.rx-impact-tag {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rx-text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.rx-impact-number {
+  font-size: clamp(3rem, 7.5vw, 6.25rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--rx-text-primary);
+  margin-bottom: 1.25rem;
+}
+
+.rx-impact-caption {
+  font-size: 1.15rem;
+  color: var(--rx-text-secondary);
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+/* -----------------------------------------
+   9. FINAL CTA SECTION (Contrast Hero)
+----------------------------------------- */
+.rx-landing-cta-banner {
+  padding: 0 0 5rem;
+}
+
+.rx-cta-card {
+  background: var(--rx-dark);
+  color: #FFFFFF;
+  border-radius: 28px;
+  padding: 4.5rem 3rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.rx-cta-card::before {
+  content: '';
+  position: absolute;
+  top: -120px;
+  right: -80px;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(242, 245, 0, 0.22) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.rx-cta-card h2 {
+  color: #FFFFFF;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  max-width: 680px;
+  margin: 0 auto 1.25rem;
+}
+
+.rx-cta-card p {
+  color: #A3A8A0;
+  font-size: 1.1rem;
+  max-width: 540px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.6;
+}
+
+.rx-cta-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.rx-cta-badges {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  font-size: 0.8125rem;
+  color: #7D857A;
+  flex-wrap: wrap;
+}
+
+/* -----------------------------------------
+   10. FOOTER
+----------------------------------------- */
+.rx-landing-footer {
+  border-top: 1px solid var(--rx-border);
+  padding: 4.5rem 0 2.5rem;
+  background: #FFFFFF;
+}
+
+.rx-footer-grid {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(4, 1fr);
+  gap: 2.5rem;
+  margin-bottom: 3.5rem;
+}
+
+.rx-footer-brand-p {
+  color: var(--rx-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  max-width: 280px;
+  margin-top: 0.75rem;
+}
+
+.rx-footer-col h5 {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--rx-text-primary);
+  margin-bottom: 1.25rem;
+}
+
+.rx-footer-col ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.rx-footer-col li {
+  margin-bottom: 0.65rem;
+}
+
+.rx-footer-col a {
+  font-size: 0.875rem;
+  color: var(--rx-text-secondary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.rx-footer-col a:hover {
+  color: var(--rx-text-primary);
+}
+
+.rx-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 2rem;
+  border-top: 1px solid var(--rx-border);
+  font-size: 0.8125rem;
+  color: var(--rx-text-secondary);
+}
+
+.rx-footer-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #DCFCE7;
+  color: #15803D;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  border: 1px solid #BBF7D0;
+}
+
+.rx-footer-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #15803D;
+}
+
+/* -----------------------------------------
+   RESPONSIVE QUERIES
+----------------------------------------- */
+@media (max-width: 1024px) {
+  .rx-landing-links {
+    display: none;
+  }
+  .rx-landing-mobile-toggle {
+    display: block;
+  }
+  .rx-metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  .rx-features-split {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+  .rx-workflow-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .rx-quote-card {
+    grid-template-columns: 1fr;
+    padding: 2.5rem;
+  }
+  .rx-footer-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .rx-workflow-grid {
+    grid-template-columns: 1fr;
+  }
+  .rx-hero-canvas {
+    padding: 2rem 1rem;
+    border-radius: 20px;
+  }
+  .rx-hero-agent-card {
+    padding: 1.25rem;
+  }
+  .rx-footer-grid {
+    grid-template-columns: 1fr;
+  }
+  .rx-footer-bottom {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+}
+

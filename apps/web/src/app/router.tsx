@@ -29,8 +29,15 @@ import { AuditLogDetailPage } from '../features/audit/audit-log-detail-page';
 import { JobsPage } from '../features/jobs/jobs-page';
 import { JobDetailPage } from '../features/jobs/job-detail-page';
 import { SettingsPage } from '../features/settings/settings-page';
+import { LandingPage } from '../features/landing/landing-page';
 
 export const router = createBrowserRouter([
+  // Public Landing Page (Application Entry Point)
+  {
+    path: '/',
+    element: <LandingPage />,
+  },
+
   // Public Authentication Routes
   {
     path: '/login',
@@ -76,10 +83,6 @@ export const router = createBrowserRouter([
       {
         path: '/select-org',
         element: <SelectOrgPage />,
-      },
-      {
-        path: '/',
-        element: <Navigate to="/select-org" replace />,
       },
       // Tenant Org-Scoped Routes
       {
