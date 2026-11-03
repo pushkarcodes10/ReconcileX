@@ -10,7 +10,7 @@ import {
   validateHeadersAndMapping,
 } from '../src';
 
-describe('packages/csv unit tests', () => {
+describe('backend/csv unit tests', () => {
   describe('Currency & Scale', () => {
     it('should return correct decimal scale for various currencies', () => {
       expect(getCurrencyMinorUnitScale('INR')).toBe(2);

@@ -97,8 +97,16 @@ This section provides technical documentation for software engineers, DevOps per
 
 ```
 reconcile-x/
-├── apps/
-│   ├── api/                     # NestJS backend application
+├── frontend/                    # React Single Page Application (SPA)
+│   ├── src/
+│   │   ├── api/                 # API client with credential handling and refresh mutex
+│   │   ├── auth/                # Authentication context and permission definitions
+│   │   ├── features/            # Feature views (dashboard, reconciliation, exceptions,
+│   │   │                        # imports, data sources, audit, jobs, settings)
+│   │   └── shared/              # Reusable UI components and utilities
+│   └── package.json             # @reconcilex/web
+├── backend/
+│   ├── api/                     # NestJS backend application (@reconcilex/api)
 │   │   ├── src/
 │   │   │   ├── common/          # Guards (OrgGuard, RolesGuard), filters, middleware
 │   │   │   ├── config/          # Environment validation (class-validator) and schema
@@ -107,17 +115,9 @@ reconcile-x/
 │   │   │   └── modules/         # Domain modules (auth, orgs, data-sources, transactions,
 │   │   │                        # imports, reconciliation, exceptions, audit, jobs, dashboard)
 │   │   └── test/                # API integration test suites
-│   └── web/                     # React Single Page Application (SPA)
-│       └── src/
-│           ├── api/             # API client with credential handling and refresh mutex
-│           ├── auth/            # Authentication context and permission definitions
-│           ├── features/        # Feature views (dashboard, reconciliation, exceptions,
-│           │                    # imports, data sources, audit, jobs, settings)
-│           └── shared/          # Reusable UI components and utilities
-├── packages/
-│   ├── db/                      # Shared PostgreSQL schema definitions and Drizzle migrations
-│   ├── matching/                # Pure TypeScript deterministic reconciliation matching engine
-│   └── csv/                     # Streaming CSV parser, normalizer, and row validator
+│   ├── db/                      # Shared PostgreSQL schema definitions and Drizzle migrations (@reconcilex/db)
+│   ├── matching/                # Pure TypeScript deterministic reconciliation matching engine (@reconcilex/matching)
+│   └── csv/                     # Streaming CSV parser, normalizer, and row validator (@reconcilex/csv)
 ├── docs/                        # Architecture documentation, ADRs, and progress tracking
 └── infra/
     └── docker/                  # Local infrastructure containers (PostgreSQL, MinIO)
@@ -273,9 +273,9 @@ pnpm build
 ```
 
 This compiles:
-- TypeScript libraries in `packages/db`, `packages/csv`, and `packages/matching` into `dist/`.
-- The NestJS API into `apps/api/dist/`.
-- The React application into `apps/web/dist/`.
+- TypeScript libraries in `backend/db`, `backend/csv`, and `backend/matching` into `dist/`.
+- The NestJS API into `backend/api/dist/`.
+- The React application into `frontend/dist/`.
 
 ## 7. Health and Probes
 

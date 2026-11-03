@@ -1,6 +1,6 @@
 packages:
-  - 'apps/*'
-  - 'packages/*'
+  - 'frontend'
+  - 'backend/*'
 
 allowBuilds:
   '@nestjs/core': true
