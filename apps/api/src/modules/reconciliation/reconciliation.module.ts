@@ -1,6 +1,8 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { AuditModule } from '../audit/audit.module';
 import { DataSourcesModule } from '../data-sources/data-sources.module';
 import { ExceptionsModule } from '../exceptions/exceptions.module';
+import { JobsModule } from '../jobs/jobs.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { TransactionsModule } from '../transactions/transactions.module';
 import { RECONCILIATION_JOB_SERVICE } from './job/reconciliation-job.interface';
@@ -15,6 +17,8 @@ import { RECONCILIATION_REPOSITORY } from './repositories/reconciliation.reposit
     OrganizationsModule,
     DataSourcesModule,
     TransactionsModule,
+    AuditModule,
+    JobsModule,
     forwardRef(() => ExceptionsModule),
   ],
   controllers: [ReconciliationController],

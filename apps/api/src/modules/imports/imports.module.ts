@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { OrgGuard } from '../../common/guards/org.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AuditModule } from '../audit/audit.module';
 import { DataSourcesModule } from '../data-sources/data-sources.module';
+import { JobsModule } from '../jobs/jobs.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { StorageModule } from '../storage/storage.module';
 import { TransactionsModule } from '../transactions/transactions.module';
@@ -13,7 +15,14 @@ import { DrizzleImportsRepository } from './repositories/drizzle-imports.reposit
 import { IMPORTS_REPOSITORY } from './repositories/imports.repository.interface';
 
 @Module({
-  imports: [OrganizationsModule, DataSourcesModule, TransactionsModule, StorageModule],
+  imports: [
+    OrganizationsModule,
+    DataSourcesModule,
+    TransactionsModule,
+    StorageModule,
+    AuditModule,
+    JobsModule,
+  ],
   controllers: [ImportsController],
   providers: [
     ImportsService,

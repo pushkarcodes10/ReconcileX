@@ -7,10 +7,13 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
+  AuditAction,
+  AuditEntityType,
   MatchClassification,
   MatchStatus,
   ReconciliationRunStatus,
 } from '@reconcilex/db';
+import { AuditService } from '../audit/audit.service';
 import { ExceptionsService } from '../exceptions/exceptions.service';
 import {
   DATA_SOURCES_REPOSITORY,
@@ -49,6 +52,8 @@ export class ReconciliationService {
     private readonly jobService: IReconciliationJobService,
     @Optional()
     private readonly exceptionsService?: ExceptionsService,
+    @Optional()
+    private readonly auditService?: AuditService,
   ) {}
 
   async createRun(
@@ -189,6 +194,23 @@ export class ReconciliationService {
       idempotencyKey: idempotencyKey || null,
       createdBy: userId,
     });
+
+    if (this.auditService) {
+      await this.auditService.logUserAction(
+        orgId,
+        userId,
+        AuditAction.RECONCILIATION_RUN_CREATED,
+        AuditEntityType.RECONCILIATION_RUN,
+        newRun.id,
+        {
+          displayId: newRun.displayId,
+          sourceAId: dto.sourceA,
+          sourceBId: dto.sourceB,
+          dateFrom: dto.dateFrom,
+          dateTo: dto.dateTo,
+        },
+      );
+    }
 
     // 10. Execute matching engine via JobService
     await this.jobService.submitRun(newRun, {
@@ -358,6 +380,23 @@ export class ReconciliationService {
 
   async confirmMatch(orgId: string, matchId: string, userId: string): Promise<MatchDetailDto> {
     const updated = await this.reconciliationRepo.confirmMatch(orgId, matchId, userId);
+
+    if (this.auditService) {
+      await this.auditService.logUserAction(
+        orgId,
+        userId,
+        AuditAction.MATCH_CONFIRMED,
+        AuditEntityType.MATCH,
+        updated.id,
+        {
+          runId: updated.runId,
+          transactionAId: updated.transactionA.id,
+          transactionBId: updated.transactionB.id,
+          score: updated.score,
+        },
+      );
+    }
+
     return {
       ...updated,
       classification: updated.classification as MatchClassification,
@@ -398,6 +437,22 @@ export class ReconciliationService {
     dto: RejectMatchDto,
   ): Promise<MatchDetailDto> {
     const updated = await this.reconciliationRepo.rejectMatch(orgId, matchId, userId, dto.reason);
+
+    if (this.auditService) {
+      await this.auditService.logUserAction(
+        orgId,
+        userId,
+        AuditAction.MATCH_REJECTED,
+        AuditEntityType.MATCH,
+        updated.id,
+        {
+          runId: updated.runId,
+          transactionAId: updated.transactionA.id,
+          transactionBId: updated.transactionB.id,
+          reason: dto.reason,
+        },
+      );
+    }
 
     if (this.exceptionsService) {
       if (updated.transactionA.status === 'UNMATCHED') {

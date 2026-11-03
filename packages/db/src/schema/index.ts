@@ -14,3 +14,5 @@ export * from './reconciliation-runs';
 export * from './matches';
 export * from './exceptions';
 export * from './exception-comments';
+export * from './audit-logs';
+export * from './jobs';

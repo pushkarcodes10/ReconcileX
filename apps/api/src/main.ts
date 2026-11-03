@@ -70,6 +70,9 @@ async function bootstrap(): Promise<void> {
     )
     .addTag('Reconciliation', 'Reconciliation runs, matches, and confirm/reject operations')
     .addTag('Exceptions', 'Exception management, lifecycle state machine, assignments, and resolution')
+    .addTag('Audit Logs', 'Immutable organizational audit log trail')
+    .addTag('Jobs', 'Asynchronous job lifecycle, progress, and status inspection')
+    .addTag('Dashboard', 'Real-time organizational reconciliation and exception dashboard metrics')
     .addCookieAuth('access_token', {
       type: 'apiKey',
       in: 'cookie',

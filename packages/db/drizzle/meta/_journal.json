@@ -36,6 +36,13 @@
       "when": 1793691473877,
       "tag": "0004_burly_captain_britain",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793698374928,
+      "tag": "0005_slow_steve_rogers",
+      "breakpoints": true
     }
   ]
 }

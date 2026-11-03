@@ -3,8 +3,17 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import { Exception, ExceptionStatus, NewException, ResolutionAction } from '@reconcilex/db';
+import {
+  AuditAction,
+  AuditEntityType,
+  Exception,
+  ExceptionStatus,
+  NewException,
+  ResolutionAction,
+} from '@reconcilex/db';
+import { AuditService } from '../audit/audit.service';
 import {
   IOrganizationsRepository,
   ORGANIZATIONS_REPOSITORY,
@@ -38,6 +47,8 @@ export class ExceptionsService {
     private readonly exceptionsRepo: IExceptionsRepository,
     @Inject(ORGANIZATIONS_REPOSITORY)
     private readonly orgRepo: IOrganizationsRepository,
+    @Optional()
+    private readonly auditService?: AuditService,
   ) {}
 
   async createExceptionsForUnmatched(
@@ -56,7 +67,21 @@ export class ExceptionsService {
       status: ExceptionStatus.OPEN,
     }));
 
-    return this.exceptionsRepo.createMany(items);
+    const created = await this.exceptionsRepo.createMany(items);
+
+    if (this.auditService && created.length > 0) {
+      for (const exc of created) {
+        await this.auditService.logSystemAction(
+          orgId,
+          AuditAction.EXCEPTION_CREATED,
+          AuditEntityType.EXCEPTION,
+          exc.id,
+          { runId, transactionId: exc.transactionId },
+        );
+      }
+    }
+
+    return created;
   }
 
   async getExceptions(
@@ -177,6 +202,17 @@ export class ExceptionsService {
     const nextStatus = getNextStatus(exc.status as ExceptionStatus, ExceptionAction.ASSIGN);
     await this.exceptionsRepo.assign(orgId, exceptionId, dto.assigneeId, nextStatus);
 
+    if (this.auditService) {
+      await this.auditService.logUserAction(
+        orgId,
+        _currentUserId,
+        AuditAction.EXCEPTION_ASSIGNED,
+        AuditEntityType.EXCEPTION,
+        exceptionId,
+        { assigneeId: dto.assigneeId, previousStatus: exc.status, newStatus: nextStatus },
+      );
+    }
+
     return this.getExceptionDetail(orgId, exceptionId);
   }
 
@@ -203,6 +239,17 @@ export class ExceptionsService {
     }
 
     const created = await this.exceptionsRepo.addComment(orgId, exceptionId, authorId, trimmedBody);
+
+    if (this.auditService) {
+      await this.auditService.logUserAction(
+        orgId,
+        authorId,
+        AuditAction.EXCEPTION_COMMENT_ADDED,
+        AuditEntityType.EXCEPTION,
+        exceptionId,
+        { commentId: created.id },
+      );
+    }
 
     return {
       id: created.id,
@@ -266,6 +313,29 @@ export class ExceptionsService {
     }
 
     await this.exceptionsRepo.updateStatus(orgId, exceptionId, nextStatus, resolution);
+
+    if (this.auditService) {
+      let auditAction: AuditAction = AuditAction.EXCEPTION_STATUS_CHANGED;
+      if (dto.action === StatusUpdateAction.RESOLVE) {
+        auditAction = AuditAction.EXCEPTION_RESOLVED;
+      } else if (dto.action === StatusUpdateAction.REOPEN) {
+        auditAction = AuditAction.EXCEPTION_REOPENED;
+      }
+      await this.auditService.logUserAction(
+        orgId,
+        userId,
+        auditAction,
+        AuditEntityType.EXCEPTION,
+        exceptionId,
+        {
+          action: dto.action,
+          previousStatus: exc.status,
+          newStatus: nextStatus,
+          resolutionReason: dto.resolutionReason,
+          resolutionAction: dto.resolutionAction,
+        },
+      );
+    }
 
     return this.getExceptionDetail(orgId, exceptionId);
   }

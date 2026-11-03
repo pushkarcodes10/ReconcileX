@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
+import { AuditModule } from '../audit/audit.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { ExceptionsController } from './exceptions.controller';
 import { ExceptionsService } from './exceptions.service';
@@ -7,7 +8,7 @@ import { DrizzleExceptionsRepository } from './repositories/drizzle-exceptions.r
 import { EXCEPTIONS_REPOSITORY } from './repositories/exceptions.repository.interface';
 
 @Module({
-  imports: [DatabaseModule, OrganizationsModule],
+  imports: [DatabaseModule, OrganizationsModule, AuditModule],
   controllers: [ExceptionsController],
   providers: [
     ExceptionsService,

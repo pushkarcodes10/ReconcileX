@@ -327,6 +327,45 @@ export async function initializeSchema(pool: DatabasePool): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS exception_comments_exception_created_idx ON exception_comments(exception_id, created_at);
       CREATE INDEX IF NOT EXISTS exception_comments_org_created_idx ON exception_comments(organization_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        actor_type VARCHAR(50) NOT NULL DEFAULT 'USER',
+        action VARCHAR(100) NOT NULL,
+        entity_type VARCHAR(50) NOT NULL,
+        entity_id VARCHAR(255) NOT NULL,
+        metadata JSONB,
+        ip_address VARCHAR(100),
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS audit_logs_org_created_idx ON audit_logs(organization_id, created_at);
+      CREATE INDEX IF NOT EXISTS audit_logs_org_action_idx ON audit_logs(organization_id, action);
+      CREATE INDEX IF NOT EXISTS audit_logs_org_entity_idx ON audit_logs(organization_id, entity_type, entity_id);
+      CREATE INDEX IF NOT EXISTS audit_logs_org_actor_idx ON audit_logs(organization_id, actor_id);
+
+      CREATE TABLE IF NOT EXISTS jobs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        job_type VARCHAR(50) NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'QUEUED',
+        progress INTEGER NOT NULL DEFAULT 0,
+        message TEXT,
+        reference_type VARCHAR(50),
+        reference_id VARCHAR(255),
+        result JSONB,
+        error JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS jobs_org_created_idx ON jobs(organization_id, created_at);
+      CREATE INDEX IF NOT EXISTS jobs_org_status_idx ON jobs(organization_id, status);
+      CREATE INDEX IF NOT EXISTS jobs_org_type_idx ON jobs(organization_id, job_type);
+      CREATE INDEX IF NOT EXISTS jobs_org_ref_idx ON jobs(organization_id, reference_type, reference_id);
     `);
   } finally {
     client.release();

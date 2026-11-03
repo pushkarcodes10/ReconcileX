@@ -16,6 +16,9 @@ import { StorageModule } from './modules/storage/storage.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
 import { ExceptionsModule } from './modules/exceptions/exceptions.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { JobsModule } from './modules/jobs/jobs.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -74,6 +77,9 @@ import { ExceptionsModule } from './modules/exceptions/exceptions.module';
     ImportsModule,
     ReconciliationModule,
     ExceptionsModule,
+    AuditModule,
+    JobsModule,
+    DashboardModule,
   ],
   providers: [
     {

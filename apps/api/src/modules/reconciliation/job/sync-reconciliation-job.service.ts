@@ -1,7 +1,16 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { NewMatch, ReconciliationRun, Transaction } from '@reconcilex/db';
+import {
+  AuditAction,
+  AuditEntityType,
+  JobType,
+  NewMatch,
+  ReconciliationRun,
+  Transaction,
+} from '@reconcilex/db';
 import { MatchTransaction, matchTwoSets, MatchingConfig } from '@reconcilex/matching';
+import { AuditService } from '../../audit/audit.service';
 import { ExceptionsService } from '../../exceptions/exceptions.service';
+import { JobsService } from '../../jobs/jobs.service';
 import {
   ITransactionsRepository,
   TRANSACTIONS_REPOSITORY,
@@ -26,6 +35,10 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
     private readonly transactionsRepo: ITransactionsRepository,
     @Optional()
     private readonly exceptionsService?: ExceptionsService,
+    @Optional()
+    private readonly jobsService?: JobsService,
+    @Optional()
+    private readonly auditService?: AuditService,
   ) {}
 
   async submitRun(
@@ -34,8 +47,20 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
   ): Promise<{ jobId: string; status: string }> {
     const runId = run.id;
     const organizationId = run.organizationId;
+    let jobId = runId;
 
     try {
+      if (this.jobsService) {
+        const job = await this.jobsService.createJob(organizationId, {
+          jobType: JobType.RECONCILIATION_RUN,
+          referenceType: 'RECONCILIATION_RUN',
+          referenceId: runId,
+          message: 'Reconciliation run started',
+        });
+        jobId = job.id;
+        await this.jobsService.markRunning(organizationId, job.id, 'Comparing transaction datasets', 20);
+      }
+
       // 1. Mark run status as PROCESSING
       await this.reconciliationRepo.updateRun(runId, { status: 'PROCESSING' });
 
@@ -197,7 +222,36 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
         );
       }
 
-      return { jobId: runId, status: 'COMPLETED' };
+      if (this.jobsService && jobId !== runId) {
+        await this.jobsService.markCompleted(
+          organizationId,
+          jobId,
+          {
+            totalSourceA: txnsA.length,
+            totalSourceB: txnsB.length,
+            exactMatchCount: exactCount,
+            potentialMatchCount: potentialCount,
+            unmatchedCount: unmatchedIds.length,
+          },
+          'Reconciliation run completed successfully',
+        );
+      }
+
+      if (this.auditService) {
+        await this.auditService.logSystemAction(
+          organizationId,
+          AuditAction.RECONCILIATION_RUN_COMPLETED,
+          AuditEntityType.RECONCILIATION_RUN,
+          runId,
+          {
+            exactMatchCount: exactCount,
+            potentialMatchCount: potentialCount,
+            unmatchedCount: unmatchedIds.length,
+          },
+        );
+      }
+
+      return { jobId, status: 'COMPLETED' };
     } catch (error) {
       this.logger.error(
         `Failed processing reconciliation run ${runId}: ${(error as Error).message}`,
@@ -213,7 +267,21 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
         },
       });
 
-      return { jobId: runId, status: 'FAILED' };
+      if (this.jobsService && jobId !== runId) {
+        await this.jobsService.markFailed(organizationId, jobId, error, (error as Error).message);
+      }
+
+      if (this.auditService) {
+        await this.auditService.logSystemAction(
+          organizationId,
+          AuditAction.RECONCILIATION_RUN_FAILED,
+          AuditEntityType.RECONCILIATION_RUN,
+          runId,
+          { error: (error as Error).message },
+        );
+      }
+
+      return { jobId, status: 'FAILED' };
     }
   }
 }

@@ -1,6 +1,17 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { parseCsvStream } from '@reconcilex/csv';
-import { Import, NewDuplicateCandidate, NewImportRowError, NewTransaction } from '@reconcilex/db';
+import {
+  AuditAction,
+  AuditEntityType,
+  Import,
+  Job,
+  JobType,
+  NewDuplicateCandidate,
+  NewImportRowError,
+  NewTransaction,
+} from '@reconcilex/db';
+import { AuditService } from '../../audit/audit.service';
+import { JobsService } from '../../jobs/jobs.service';
 import {
   DATA_SOURCES_REPOSITORY,
   IDataSourcesRepository,
@@ -31,6 +42,10 @@ export class SyncJobService implements JobService {
     private readonly transactionsRepo: ITransactionsRepository,
     @Inject(IMPORTS_REPOSITORY)
     private readonly importsRepo: IImportsRepository,
+    @Optional()
+    private readonly jobsService?: JobsService,
+    @Optional()
+    private readonly auditService?: AuditService,
   ) {}
 
   async submitImport(
@@ -40,6 +55,21 @@ export class SyncJobService implements JobService {
     const importId = importRecord.id;
     const organizationId = importRecord.organizationId;
     const dataSourceId = importRecord.dataSourceId;
+
+    let jobRecord: Job | null = null;
+    if (this.jobsService) {
+      jobRecord = await this.jobsService.createJob(
+        organizationId,
+        JobType.CSV_IMPORT,
+        'IMPORT',
+        importId,
+      );
+      await this.jobsService.markRunning(
+        organizationId,
+        jobRecord.id,
+        'Processing CSV import...',
+      );
+    }
 
     try {
       // 1. Update status to PROCESSING
@@ -221,7 +251,44 @@ export class SyncJobService implements JobService {
           : undefined,
       });
 
-      return { jobId: importId, status: finalStatus };
+      if (this.jobsService && jobRecord) {
+        if (finalStatus === 'COMPLETED') {
+          await this.jobsService.markCompleted(organizationId, jobRecord.id, {
+            rowCount: totalRows,
+            validCount,
+            invalidCount,
+            duplicateCount,
+          });
+        } else {
+          await this.jobsService.markFailed(
+            organizationId,
+            jobRecord.id,
+            'CSV headers did not match required data source column mapping',
+          );
+        }
+      }
+
+      if (this.auditService) {
+        if (finalStatus === 'COMPLETED') {
+          await this.auditService.logSystemAction(
+            organizationId,
+            AuditAction.IMPORT_COMPLETED,
+            AuditEntityType.IMPORT,
+            importId,
+            { totalRows, validCount, invalidCount, duplicateCount },
+          );
+        } else {
+          await this.auditService.logSystemAction(
+            organizationId,
+            AuditAction.IMPORT_FAILED,
+            AuditEntityType.IMPORT,
+            importId,
+            { error: 'CSV headers did not match required data source column mapping' },
+          );
+        }
+      }
+
+      return { jobId: jobRecord?.id || importId, status: finalStatus };
     } catch (error) {
       this.logger.error(
         `Failed processing import ${importId}: ${(error as Error).message}`,
@@ -236,7 +303,21 @@ export class SyncJobService implements JobService {
         },
       });
 
-      return { jobId: importId, status: 'FAILED' };
+      if (this.jobsService && jobRecord) {
+        await this.jobsService.markFailed(organizationId, jobRecord.id, (error as Error).message);
+      }
+
+      if (this.auditService) {
+        await this.auditService.logSystemAction(
+          organizationId,
+          AuditAction.IMPORT_FAILED,
+          AuditEntityType.IMPORT,
+          importId,
+          { error: (error as Error).message },
+        );
+      }
+
+      return { jobId: jobRecord?.id || importId, status: 'FAILED' };
     }
   }
 }
