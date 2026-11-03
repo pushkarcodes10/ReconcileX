@@ -1,21 +1,33 @@
-import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import {
   checkDatabaseHealth,
   closeDatabaseClient,
   DatabaseClient,
   DatabaseHealthResult,
   DatabasePool,
+  initializeSchema,
 } from '@reconcilex/db';
 import { DATABASE_CLIENT, DATABASE_POOL } from './database.constants';
 
 @Injectable()
-export class DatabaseService implements OnApplicationShutdown {
+export class DatabaseService implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(DatabaseService.name);
 
   constructor(
     @Inject(DATABASE_CLIENT) private readonly db: DatabaseClient,
     @Inject(DATABASE_POOL) private readonly pool: DatabasePool,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    try {
+      await initializeSchema(this.pool);
+      this.logger.log('Database schema verified and initialized.');
+    } catch (error) {
+      this.logger.warn(
+        `Failed to auto-verify schema on startup: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
 
   getClient(): DatabaseClient {
     return this.db;

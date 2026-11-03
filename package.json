@@ -5,6 +5,8 @@
   "description": "Multi-tenant transaction reconciliation platform",
   "scripts": {
     "dev": "pnpm --filter @reconcilex/api dev",
+    "dev:web": "pnpm --filter @reconcilex/web dev",
+    "dev:api": "pnpm --filter @reconcilex/api dev",
     "build": "pnpm --recursive run build",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,json,md,yml,yaml}\"",
