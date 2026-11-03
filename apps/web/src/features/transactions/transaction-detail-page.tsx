@@ -6,6 +6,12 @@ import { LoadingState, ErrorState } from '../../shared/components/page-state';
 import { StatusBadge } from '../../shared/components/status-badge';
 import { formatAmountMinor } from '../../shared/lib/amount';
 import { formatDateTime } from '../../shared/lib/date';
+import {
+  ArrowLeftIcon,
+  ReceiptIcon,
+  DatabaseIcon,
+  FileSpreadsheetIcon,
+} from '../../shared/components/icons';
 
 export const TransactionDetailPage: React.FC = () => {
   const { orgId, id } = useParams<{ orgId: string; id: string }>();
@@ -21,82 +27,155 @@ export const TransactionDetailPage: React.FC = () => {
   if (!txn) return <p>Transaction record not found.</p>;
 
   return (
-    <div style={{ maxWidth: '800px' }}>
-      <div style={{ marginBottom: '1rem' }}>
-        <Link to={`/orgs/${orgId}/transactions`}>&larr; Back to Transactions</Link>
+    <div style={{ maxWidth: '880px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div>
+        <Link
+          to={`/orgs/${orgId}/transactions`}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--rx-text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}
+        >
+          <ArrowLeftIcon size={14} /> Back to Transactions
+        </Link>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Transaction: {txn.externalId}</h1>
-          <div style={{ color: '#666', marginTop: '0.25rem' }}>
-            ID: <code>{txn.id}</code> | Status: <StatusBadge status={txn.status} />
+      {/* Header Card (Reference 1 & 4) */}
+      <div className="rx-card" style={{ padding: '1.75rem', backgroundColor: '#FFFFFF' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: 'var(--rx-radius-md)',
+                  backgroundColor: 'var(--rx-dark)',
+                  color: 'var(--rx-lime)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ReceiptIcon size={18} />
+              </div>
+              <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>
+                Transaction: {txn.externalId}
+              </h1>
+            </div>
+            <div style={{ color: 'var(--rx-text-secondary)', marginTop: '0.4rem', fontSize: '0.85rem' }}>
+              System ID: <code>{txn.id}</code>
+            </div>
+          </div>
+          <div>
+            <StatusBadge status={txn.status} />
           </div>
         </div>
       </div>
 
-      <section style={{ border: '1px solid #ccc', padding: '1.5rem', marginBottom: '1.5rem' }}>
-        <h3>Transaction Record Details</h3>
+      {/* Hero Financial Amount Card (Reference 2 Bento Accent) */}
+      <div
+        className="rx-card"
+        style={{
+          padding: '1.5rem 1.75rem',
+          backgroundColor: 'var(--rx-dark)',
+          color: '#FFFFFF',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}
+      >
+        <div>
+          <span style={{ fontSize: '0.8rem', color: '#D4D8CF', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.04em' }}>
+            Reconciled Amount
+          </span>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--rx-lime)', fontFamily: 'var(--rx-font-mono)', lineHeight: 1.1, marginTop: '0.25rem' }}>
+            {formatAmountMinor(txn.amountMinor, txn.currency)}
+          </div>
+        </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <tbody>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '0.5rem', width: '220px' }}><strong>Formatted Amount:</strong></td>
-              <td style={{ padding: '0.5rem', fontSize: '1.2rem', fontWeight: 'bold' }}>
-                {formatAmountMinor(txn.amountMinor, txn.currency)}
-              </td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '0.5rem' }}><strong>Raw Amount (Minor Units):</strong></td>
-              <td style={{ padding: '0.5rem' }}><code>{txn.amountMinor}</code> {txn.currency}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '0.5rem' }}><strong>Transaction Date:</strong></td>
-              <td style={{ padding: '0.5rem' }}>{formatDateTime(txn.transactionDate)}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '0.5rem' }}><strong>Reference:</strong></td>
-              <td style={{ padding: '0.5rem' }}>{txn.reference || '—'}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '0.5rem' }}><strong>External Transaction ID:</strong></td>
-              <td style={{ padding: '0.5rem' }}>{txn.externalTxnId || '—'}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '0.5rem' }}><strong>Merchant / Order ID:</strong></td>
-              <td style={{ padding: '0.5rem' }}>{txn.merchantOrOrderId || '—'}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '0.5rem' }}><strong>Transaction Type:</strong></td>
-              <td style={{ padding: '0.5rem' }}>{txn.txnType || '—'}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '0.5rem' }}><strong>Data Source ID:</strong></td>
-              <td style={{ padding: '0.5rem' }}>
-                <Link to={`/orgs/${orgId}/data-sources/${txn.dataSourceId}`}>
-                  <code>{txn.dataSourceId}</code>
-                </Link>
-              </td>
-            </tr>
-            {txn.importId && (
-              <tr style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '0.5rem' }}><strong>Import Batch ID:</strong></td>
-                <td style={{ padding: '0.5rem' }}>
-                  <Link to={`/orgs/${orgId}/imports/${txn.importId}`}>
-                    <code>{txn.importId}</code>
+        <div style={{ textAlign: 'right', fontSize: '0.85rem' }}>
+          <div style={{ color: '#D4D8CF' }}>Raw minor units:</div>
+          <code style={{ fontSize: '1.1rem', color: '#FFFFFF', fontWeight: 700 }}>
+            {txn.amountMinor} {txn.currency}
+          </code>
+        </div>
+      </div>
+
+      {/* Structured Details Table (Reference 4) */}
+      <section className="rx-card" style={{ padding: '1.75rem' }}>
+        <h3 style={{ margin: '0 0 1rem', fontSize: '1.15rem', fontWeight: 700 }}>
+          Transaction Record Details
+        </h3>
+
+        <div className="rx-table-container">
+          <table className="rx-table">
+            <tbody>
+              <tr>
+                <td style={{ width: '240px', color: 'var(--rx-text-secondary)', fontWeight: 600 }}>Transaction Date</td>
+                <td>{formatDateTime(txn.transactionDate)}</td>
+              </tr>
+              <tr>
+                <td style={{ color: 'var(--rx-text-secondary)', fontWeight: 600 }}>Reference / Memo</td>
+                <td>{txn.reference || '—'}</td>
+              </tr>
+              <tr>
+                <td style={{ color: 'var(--rx-text-secondary)', fontWeight: 600 }}>External Transaction ID</td>
+                <td><code className="rx-col-code">{txn.externalTxnId || '—'}</code></td>
+              </tr>
+              <tr>
+                <td style={{ color: 'var(--rx-text-secondary)', fontWeight: 600 }}>Merchant / Order ID</td>
+                <td><code className="rx-col-code">{txn.merchantOrOrderId || '—'}</code></td>
+              </tr>
+              <tr>
+                <td style={{ color: 'var(--rx-text-secondary)', fontWeight: 600 }}>Transaction Type</td>
+                <td>{txn.txnType || '—'}</td>
+              </tr>
+              <tr>
+                <td style={{ color: 'var(--rx-text-secondary)', fontWeight: 600 }}>Originating Data Source</td>
+                <td>
+                  <Link
+                    to={`/orgs/${orgId}/data-sources/${txn.dataSourceId}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--rx-text-primary)', fontWeight: 600 }}
+                  >
+                    <DatabaseIcon size={14} /> <code>{txn.dataSourceId}</code> &rarr;
                   </Link>
                 </td>
               </tr>
-            )}
-          </tbody>
-        </table>
+              {txn.importId && (
+                <tr>
+                  <td style={{ color: 'var(--rx-text-secondary)', fontWeight: 600 }}>Import Batch ID</td>
+                  <td>
+                    <Link
+                      to={`/orgs/${orgId}/imports/${txn.importId}`}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--rx-text-primary)', fontWeight: 600 }}
+                    >
+                      <FileSpreadsheetIcon size={14} /> <code>{txn.importId}</code> &rarr;
+                    </Link>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/* Raw Payload / Metadata */}
       {txn.metadata && Object.keys(txn.metadata).length > 0 && (
-        <section style={{ border: '1px solid #eee', padding: '1rem' }}>
-          <h4>Additional Ingested Metadata</h4>
-          <pre style={{ backgroundColor: '#f9f9f9', padding: '0.75rem', overflowX: 'auto', fontSize: '0.85rem' }}>
+        <section className="rx-card" style={{ padding: '1.75rem' }}>
+          <h4 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 700 }}>
+            Additional Ingested Metadata
+          </h4>
+          <pre
+            style={{
+              backgroundColor: 'var(--rx-surface-subtle)',
+              border: '1px solid var(--rx-border)',
+              padding: '1rem',
+              borderRadius: 'var(--rx-radius-md)',
+              overflowX: 'auto',
+              fontSize: '0.8125rem',
+              margin: 0,
+            }}
+          >
             {JSON.stringify(txn.metadata, null, 2)}
           </pre>
         </section>

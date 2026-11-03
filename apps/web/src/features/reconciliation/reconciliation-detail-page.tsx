@@ -9,6 +9,16 @@ import { Pagination } from '../../shared/components/pagination';
 import { formatAmountMinor } from '../../shared/lib/amount';
 import { formatDate, formatDateTime } from '../../shared/lib/date';
 import { ApiError } from '../../api/errors';
+import {
+  ArrowLeftIcon,
+  GitCompareIcon,
+  CheckCircleIcon,
+  AlertCircleIcon,
+  AlertOctagonIcon,
+  ArrowRightIcon,
+  CheckIcon,
+  XIcon,
+} from '../../shared/components/icons';
 
 export const ReconciliationDetailPage: React.FC = () => {
   const { orgId, runId } = useParams<{ orgId: string; runId: string }>();
@@ -105,168 +115,220 @@ export const ReconciliationDetailPage: React.FC = () => {
   if (!run) return <p>Reconciliation run not found.</p>;
 
   return (
-    <div>
-      <div style={{ marginBottom: '1rem' }}>
-        <Link to={`/orgs/${orgId}/reconciliation`}>&larr; Back to Reconciliation Runs</Link>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      <div>
+        <Link
+          to={`/orgs/${orgId}/reconciliation`}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--rx-text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}
+        >
+          <ArrowLeftIcon size={14} /> Back to Reconciliation Runs
+        </Link>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Reconciliation Run #{run.id.slice(0, 8)}</h1>
-          <div style={{ color: '#666', marginTop: '0.25rem' }}>
-            Date Range: {formatDate(run.dateFrom)} to {formatDate(run.dateTo)} | Status:{' '}
-            <StatusBadge status={run.status} /> | Initiated: {formatDateTime(run.createdAt)}
+      {/* Header (Reference 1) */}
+      <div className="rx-card" style={{ padding: '1.75rem', backgroundColor: '#FFFFFF' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <GitCompareIcon size={20} style={{ color: 'var(--rx-text-primary)' }} />
+              <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>
+                Reconciliation Run #{run.id.slice(0, 8)}
+              </h1>
+            </div>
+            <div style={{ color: 'var(--rx-text-secondary)', marginTop: '0.4rem', fontSize: '0.85rem' }}>
+              Reconciliation Window: <strong>{formatDate(run.dateFrom)}</strong> to{' '}
+              <strong>{formatDate(run.dateTo)}</strong> | Initiated: {formatDateTime(run.createdAt)}
+            </div>
+          </div>
+          <div>
+            <StatusBadge status={run.status} />
           </div>
         </div>
       </div>
 
       {actionError && (
-        <div role="alert" style={{ color: 'red', border: '1px solid red', padding: '0.75rem', marginBottom: '1rem' }}>
-          <strong>Error:</strong> {actionError}
+        <div
+          role="alert"
+          style={{
+            padding: '0.85rem 1rem',
+            backgroundColor: 'var(--rx-danger-bg)',
+            border: '1px solid var(--rx-danger-border)',
+            borderRadius: 'var(--rx-radius-md)',
+            color: 'var(--rx-danger)',
+            fontSize: '0.875rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <AlertCircleIcon size={18} style={{ flexShrink: 0 }} />
+          <div><strong>Error:</strong> {actionError}</div>
         </div>
       )}
 
-      {/* Counters Breakdown */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-          <div style={{ fontSize: '0.85rem', color: '#666' }}>Exact Matches</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'green' }}>
-            {run.exactMatchesCount}
-          </div>
+      {/* Counters Breakdown (Reference 2 Bento Metrics) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+        <div className="rx-bento-card rx-bento-sage" style={{ padding: '1.25rem' }}>
+          <div className="rx-bento-label" style={{ color: '#1A2917' }}>Exact Matches</div>
+          <div className="rx-bento-val" style={{ color: '#0F290D' }}>{run.exactMatchesCount}</div>
+          <div style={{ fontSize: '0.75rem', color: '#2B4228' }}>100% confidence parity</div>
         </div>
-        <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-          <div style={{ fontSize: '0.85rem', color: '#666' }}>Potential Matches</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'orange' }}>
-            {run.potentialMatchesCount}
-          </div>
+
+        <div className="rx-bento-card rx-bento-yellow" style={{ padding: '1.25rem' }}>
+          <div className="rx-bento-label" style={{ color: '#383204' }}>Potential Matches</div>
+          <div className="rx-bento-val" style={{ color: '#383204' }}>{run.potentialMatchesCount}</div>
+          <div style={{ fontSize: '0.75rem', color: '#595009' }}>Requiring human sign-off</div>
         </div>
-        <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-          <div style={{ fontSize: '0.85rem', color: '#666' }}>Unmatched (Exceptions)</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'red' }}>
-            {run.unmatchedCount}
-          </div>
+
+        <div className="rx-bento-card rx-bento-white" style={{ padding: '1.25rem' }}>
+          <div className="rx-bento-label" style={{ color: 'var(--rx-danger)' }}>Unmatched (Exceptions)</div>
+          <div className="rx-bento-val" style={{ color: 'var(--rx-danger)' }}>{run.unmatchedCount}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--rx-text-secondary)' }}>Auto-flagged to queue</div>
         </div>
-        <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-          <div style={{ fontSize: '0.85rem', color: '#666' }}>Source A Volume</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{run.totalTransactionsA}</div>
+
+        <div className="rx-bento-card rx-bento-dark" style={{ padding: '1.25rem' }}>
+          <div className="rx-bento-label" style={{ color: '#D4D8CF' }}>Source A Volume</div>
+          <div className="rx-bento-val" style={{ color: 'var(--rx-lime)' }}>{run.totalTransactionsA}</div>
+          <div style={{ fontSize: '0.75rem', color: '#A3A8A0' }}>Records evaluated</div>
         </div>
-        <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-          <div style={{ fontSize: '0.85rem', color: '#666' }}>Source B Volume</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{run.totalTransactionsB}</div>
+
+        <div className="rx-bento-card rx-bento-dark" style={{ padding: '1.25rem' }}>
+          <div className="rx-bento-label" style={{ color: '#D4D8CF' }}>Source B Volume</div>
+          <div className="rx-bento-val" style={{ color: '#FFFFFF' }}>{run.totalTransactionsB}</div>
+          <div style={{ fontSize: '0.75rem', color: '#A3A8A0' }}>Records evaluated</div>
         </div>
       </div>
 
-      {/* Match Results Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #ccc', marginBottom: '1.5rem' }}>
+      {/* Styled Tabs (Reference 4) */}
+      <div className="rx-tabs">
         <button
           onClick={() => {
             setActiveTab('exact');
             setMatchesPage(1);
           }}
-          style={{
-            padding: '0.5rem 1rem',
-            borderBottom: activeTab === 'exact' ? '3px solid black' : 'none',
-            fontWeight: activeTab === 'exact' ? 'bold' : 'normal',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-          }}
+          className={`rx-tab-btn ${activeTab === 'exact' ? 'active' : ''}`}
         >
-          Exact Matches ({run.exactMatchesCount})
+          <CheckCircleIcon size={16} />
+          <span>Exact Matches</span>
+          <span className="rx-tab-counter">{run.exactMatchesCount}</span>
         </button>
+
         <button
           onClick={() => {
             setActiveTab('potential');
             setMatchesPage(1);
           }}
-          style={{
-            padding: '0.5rem 1rem',
-            borderBottom: activeTab === 'potential' ? '3px solid black' : 'none',
-            fontWeight: activeTab === 'potential' ? 'bold' : 'normal',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-          }}
+          className={`rx-tab-btn ${activeTab === 'potential' ? 'active' : ''}`}
         >
-          Potential Matches ({run.potentialMatchesCount})
+          <AlertCircleIcon size={16} />
+          <span>Potential Matches (Review)</span>
+          <span className="rx-tab-counter">{run.potentialMatchesCount}</span>
         </button>
+
         <button
           onClick={() => {
             setActiveTab('unmatched');
             setUnmatchedPage(1);
           }}
-          style={{
-            padding: '0.5rem 1rem',
-            borderBottom: activeTab === 'unmatched' ? '3px solid black' : 'none',
-            fontWeight: activeTab === 'unmatched' ? 'bold' : 'normal',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-          }}
+          className={`rx-tab-btn ${activeTab === 'unmatched' ? 'active' : ''}`}
         >
-          Unmatched Transactions ({run.unmatchedCount})
+          <AlertOctagonIcon size={16} />
+          <span>Unmatched Transactions</span>
+          <span className="rx-tab-counter">{run.unmatchedCount}</span>
         </button>
       </div>
 
-      {/* Reject Modal / Input Dialog */}
+      {/* Reject Potential Match Modal Dialog */}
       {rejectingMatchId && (
-        <div style={{ border: '1px solid #c00', padding: '1rem', marginBottom: '1.5rem', backgroundColor: '#fff5f5' }}>
-          <h4>Reject Potential Match</h4>
-          <p style={{ fontSize: '0.9rem' }}>
-            Provide an optional reason for rejection. Rejecting this match will automatically flag the transaction as an OPEN exception.
-          </p>
-          <textarea
-            maxLength={1000}
-            rows={3}
-            placeholder="Reason for rejecting this match (optional, max 1000 characters)..."
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            style={{ width: '100%', padding: '0.5rem', marginBottom: '0.75rem' }}
-          />
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              onClick={() =>
-                rejectMutation.mutate({ matchId: rejectingMatchId, reason: rejectReason.trim() || undefined })
-              }
-              disabled={rejectMutation.isPending}
-              style={{ color: 'red' }}
-            >
-              {rejectMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
-            </button>
-            <button onClick={() => setRejectingMatchId(null)}>Cancel</button>
+        <div className="rx-modal-overlay">
+          <div className="rx-modal-card rx-animate-fade-in" style={{ border: '1px solid var(--rx-danger-border)' }}>
+            <h3 style={{ margin: '0 0 0.5rem', color: 'var(--rx-danger)', fontSize: '1.2rem', fontWeight: 800 }}>
+              Reject Potential Match
+            </h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--rx-text-secondary)', marginBottom: '1rem' }}>
+              Provide an optional reason for rejection. Rejecting this match will automatically flag the transaction as an OPEN exception in the review queue.
+            </p>
+            <textarea
+              maxLength={1000}
+              rows={3}
+              placeholder="Reason for rejecting this match (optional, max 1000 characters)..."
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              className="rx-textarea"
+              style={{ marginBottom: '1rem' }}
+            />
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button onClick={() => setRejectingMatchId(null)} className="rx-btn rx-btn-secondary">
+                Cancel
+              </button>
+              <button
+                onClick={() =>
+                  rejectMutation.mutate({ matchId: rejectingMatchId, reason: rejectReason.trim() || undefined })
+                }
+                disabled={rejectMutation.isPending}
+                className="rx-btn rx-btn-danger"
+              >
+                {rejectMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Tab Content: Exact Matches */}
+      {/* Tab Content: Exact Matches (Reference 4) */}
       {activeTab === 'exact' && (
         <div>
           {exactLoading ? (
             <LoadingState message="Loading exact matches..." />
           ) : !exactMatches || exactMatches.items.length === 0 ? (
-            <EmptyState title="No Exact Matches" description="No exact matches found for this run." />
+            <EmptyState title="No Exact Matches" description="No exact matches found for this reconciliation run." />
           ) : (
-            <div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="rx-table-container">
+              <table className="rx-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc' }}>
-                    <th style={{ padding: '0.6rem' }}>Score</th>
-                    <th style={{ padding: '0.6rem' }}>Transaction A (External ID / Amount)</th>
-                    <th style={{ padding: '0.6rem' }}>Transaction B (External ID / Amount)</th>
-                    <th style={{ padding: '0.6rem' }}>Reasons</th>
+                  <tr>
+                    <th>Confidence</th>
+                    <th>Transaction A (Ledger)</th>
+                    <th>Transaction B (Settlement)</th>
+                    <th>Matching Rule</th>
                   </tr>
                 </thead>
                 <tbody>
                   {exactMatches.items.map((m) => (
-                    <tr key={m.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '0.6rem', fontWeight: 'bold', color: 'green' }}>{m.score}%</td>
-                      <td style={{ padding: '0.6rem' }}>
-                        <code>{m.transactionA?.externalId}</code> ({formatAmountMinor(m.transactionA?.amountMinor, m.transactionA?.currency)})
+                    <tr key={m.id}>
+                      <td>
+                        <span
+                          style={{
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: 'var(--rx-radius-full)',
+                            backgroundColor: '#EAF7EE',
+                            color: 'var(--rx-success)',
+                            fontWeight: 800,
+                            fontSize: '0.8rem',
+                          }}
+                        >
+                          {m.score}%
+                        </span>
                       </td>
-                      <td style={{ padding: '0.6rem' }}>
-                        <code>{m.transactionB?.externalId}</code> ({formatAmountMinor(m.transactionB?.amountMinor, m.transactionB?.currency)})
+                      <td>
+                        <div>
+                          <code className="rx-col-code" style={{ fontWeight: 600 }}>{m.transactionA?.externalId}</code>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--rx-text-secondary)', marginTop: '0.15rem' }}>
+                            Amount: <strong>{formatAmountMinor(m.transactionA?.amountMinor, m.transactionA?.currency)}</strong>
+                          </div>
+                        </div>
                       </td>
-                      <td style={{ padding: '0.6rem', fontSize: '0.85rem' }}>{m.reasons?.join(', ') || 'Exact match'}</td>
+                      <td>
+                        <div>
+                          <code className="rx-col-code" style={{ fontWeight: 600 }}>{m.transactionB?.externalId}</code>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--rx-text-secondary)', marginTop: '0.15rem' }}>
+                            Amount: <strong>{formatAmountMinor(m.transactionB?.amountMinor, m.transactionB?.currency)}</strong>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
+                        {m.reasons?.join(', ') || 'Exact reference and amount parity'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -284,58 +346,84 @@ export const ReconciliationDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab Content: Potential Matches */}
+      {/* Tab Content: Potential Matches (Reference 4 + Side-by-side comparison) */}
       {activeTab === 'potential' && (
         <div>
           {potentialLoading ? (
             <LoadingState message="Loading potential matches..." />
           ) : !potentialMatches || potentialMatches.items.length === 0 ? (
-            <EmptyState title="No Potential Matches" description="No potential matches requiring manual review." />
+            <EmptyState title="No Potential Matches" description="No potential matches requiring manual operator review." />
           ) : (
-            <div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="rx-table-container">
+              <table className="rx-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc' }}>
-                    <th style={{ padding: '0.6rem' }}>Score</th>
-                    <th style={{ padding: '0.6rem' }}>Status</th>
-                    <th style={{ padding: '0.6rem' }}>Transaction A</th>
-                    <th style={{ padding: '0.6rem' }}>Transaction B</th>
-                    <th style={{ padding: '0.6rem' }}>Explainability Reasons</th>
-                    <th style={{ padding: '0.6rem' }}>Actions</th>
+                  <tr>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th>Transaction A (Source A)</th>
+                    <th>Transaction B (Source B)</th>
+                    <th>Explainability Reasons</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {potentialMatches.items.map((m) => (
-                    <tr key={m.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '0.6rem', fontWeight: 'bold', color: 'orange' }}>{m.score}%</td>
-                      <td style={{ padding: '0.6rem' }}>
+                    <tr key={m.id}>
+                      <td>
+                        <span
+                          style={{
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: 'var(--rx-radius-full)',
+                            backgroundColor: '#FEF9E6',
+                            color: '#A16207',
+                            fontWeight: 800,
+                            fontSize: '0.8rem',
+                          }}
+                        >
+                          {m.score}%
+                        </span>
+                      </td>
+                      <td>
                         <StatusBadge status={m.status} />
                       </td>
-                      <td style={{ padding: '0.6rem' }}>
-                        <code>{m.transactionA?.externalId}</code> (
-                        {formatAmountMinor(m.transactionA?.amountMinor, m.transactionA?.currency)})
+                      <td>
+                        <div>
+                          <code className="rx-col-code">{m.transactionA?.externalId}</code>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--rx-text-secondary)' }}>
+                            {formatAmountMinor(m.transactionA?.amountMinor, m.transactionA?.currency)}
+                          </div>
+                        </div>
                       </td>
-                      <td style={{ padding: '0.6rem' }}>
-                        <code>{m.transactionB?.externalId}</code> (
-                        {formatAmountMinor(m.transactionB?.amountMinor, m.transactionB?.currency)})
+                      <td>
+                        <div>
+                          <code className="rx-col-code">{m.transactionB?.externalId}</code>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--rx-text-secondary)' }}>
+                            {formatAmountMinor(m.transactionB?.amountMinor, m.transactionB?.currency)}
+                          </div>
+                        </div>
                       </td>
-                      <td style={{ padding: '0.6rem', fontSize: '0.85rem' }}>{m.reasons?.join(', ') || '—'}</td>
-                      <td style={{ padding: '0.6rem' }}>
+                      <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
+                        {m.reasons?.join(', ') || '—'}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
                         {m.status === 'PENDING' && permissions.canConfirmRejectMatches ? (
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
                             <button
                               onClick={() => confirmMutation.mutate(m.id)}
                               disabled={confirmMutation.isPending}
-                              style={{ color: 'green' }}
+                              className="rx-btn rx-btn-success rx-btn-sm"
                             >
-                              Confirm
+                              <CheckIcon size={12} /> Confirm
                             </button>
-                            <button onClick={() => setRejectingMatchId(m.id)} style={{ color: 'red' }}>
-                              Reject
+                            <button
+                              onClick={() => setRejectingMatchId(m.id)}
+                              className="rx-btn rx-btn-danger rx-btn-sm"
+                            >
+                              <XIcon size={12} /> Reject
                             </button>
                           </div>
                         ) : (
-                          <span style={{ color: '#888', fontSize: '0.85rem' }}>
+                          <span style={{ color: 'var(--rx-text-muted)', fontSize: '0.8125rem' }}>
                             {m.status !== 'PENDING' ? m.status : 'Read-only'}
                           </span>
                         )}
@@ -357,41 +445,43 @@ export const ReconciliationDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab Content: Unmatched Transactions */}
+      {/* Tab Content: Unmatched Transactions (Reference 4) */}
       {activeTab === 'unmatched' && (
         <div>
           {unmatchedLoading ? (
             <LoadingState message="Loading unmatched transactions..." />
           ) : !unmatchedData || unmatchedData.items.length === 0 ? (
-            <EmptyState title="No Unmatched Transactions" description="All transactions in this run were matched." />
+            <EmptyState title="No Unmatched Transactions" description="All transactions in this reconciliation run were matched." />
           ) : (
-            <div>
-              <p style={{ color: '#666', fontSize: '0.9rem' }}>
-                Unmatched transactions automatically generate OPEN exceptions requiring operator assignment and review.
-              </p>
-
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="rx-table-container">
+              <table className="rx-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc' }}>
-                    <th style={{ padding: '0.6rem' }}>External ID</th>
-                    <th style={{ padding: '0.6rem' }}>Amount</th>
-                    <th style={{ padding: '0.6rem' }}>Date</th>
-                    <th style={{ padding: '0.6rem' }}>Status</th>
-                    <th style={{ padding: '0.6rem' }}>Actions</th>
+                  <tr>
+                    <th>External ID</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                    <th>Transaction Date</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {unmatchedData.items.map((txn) => (
-                    <tr key={txn.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '0.6rem' }}><code>{txn.externalId}</code></td>
-                      <td style={{ padding: '0.6rem', fontWeight: 'bold' }}>
+                    <tr key={txn.id}>
+                      <td><code className="rx-col-code">{txn.externalId}</code></td>
+                      <td className="rx-col-amount" style={{ color: 'var(--rx-text-primary)' }}>
                         {formatAmountMinor(txn.amountMinor, txn.currency)}
                       </td>
-                      <td style={{ padding: '0.6rem' }}>{formatDate(txn.transactionDate)}</td>
-                      <td style={{ padding: '0.6rem' }}><StatusBadge status={txn.status} /></td>
-                      <td style={{ padding: '0.6rem' }}>
-                        <Link to={`/orgs/${orgId}/exceptions?runId=${runId}&q=${txn.externalId}`}>
-                          View Exception &rarr;
+                      <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
+                        {formatDate(txn.transactionDate)}
+                      </td>
+                      <td><StatusBadge status={txn.status} /></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Link
+                          to={`/orgs/${orgId}/exceptions?runId=${runId}&q=${txn.externalId}`}
+                          className="rx-btn rx-btn-secondary rx-btn-sm"
+                          style={{ display: 'inline-flex' }}
+                        >
+                          View Exception <ArrowRightIcon size={13} />
                         </Link>
                       </td>
                     </tr>

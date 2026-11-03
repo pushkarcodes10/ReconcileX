@@ -9,6 +9,14 @@ import { StatusBadge } from '../../shared/components/status-badge';
 import { Pagination } from '../../shared/components/pagination';
 import { formatDateTime } from '../../shared/lib/date';
 import { ImportStatus } from '../../api/types';
+import {
+  FileSpreadsheetIcon,
+  PlusIcon,
+  ArrowRightIcon,
+  AlertOctagonIcon,
+  CheckCircleIcon,
+  AlertCircleIcon,
+} from '../../shared/components/icons';
 
 export const ImportsPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
@@ -64,95 +72,112 @@ export const ImportsPage: React.FC = () => {
   if (!orgId) return null;
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      {/* Header & Upload CTA */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ margin: 0 }}>Imports & Ingestion</h1>
-          <p style={{ margin: '0.25rem 0 0', color: '#666' }}>
+          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+            Imports & Ingestion
+          </h1>
+          <p style={{ margin: '0.25rem 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.9rem' }}>
             CSV batch ingestion history, row error audits, and duplicate quarantine.
           </p>
         </div>
         {permissions.canUploadCsv && (
-          <Link to={`/orgs/${orgId}/imports/new`}>
-            <button style={{ padding: '0.5rem 1rem' }}>+ Upload New CSV</button>
+          <Link to={`/orgs/${orgId}/imports/new`} className="rx-btn rx-btn-lime">
+            <PlusIcon size={16} /> Upload New CSV
           </Link>
         )}
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #ccc', marginBottom: '1.5rem' }}>
+      {/* Styled Tabs (Reference 1 & 4) */}
+      <div className="rx-tabs">
         <button
           onClick={() => {
             setActiveTab('imports');
             setPage(1);
           }}
-          style={{
-            padding: '0.5rem 1rem',
-            borderBottom: activeTab === 'imports' ? '3px solid black' : 'none',
-            fontWeight: activeTab === 'imports' ? 'bold' : 'normal',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-          }}
+          className={`rx-tab-btn ${activeTab === 'imports' ? 'active' : ''}`}
         >
-          Import Batches
+          <FileSpreadsheetIcon size={16} />
+          <span>Import Batches</span>
+          {importsData && <span className="rx-tab-counter">{importsData.total}</span>}
         </button>
+
         <button
           onClick={() => {
             setActiveTab('duplicates');
             setPage(1);
           }}
-          style={{
-            padding: '0.5rem 1rem',
-            borderBottom: activeTab === 'duplicates' ? '3px solid black' : 'none',
-            fontWeight: activeTab === 'duplicates' ? 'bold' : 'normal',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-          }}
+          className={`rx-tab-btn ${activeTab === 'duplicates' ? 'active' : ''}`}
         >
-          Duplicate Candidates Quarantine (Read-Only)
+          <AlertOctagonIcon size={16} />
+          <span>Duplicate Candidates Quarantine (Read-Only)</span>
+          {duplicatesData && <span className="rx-tab-counter">{duplicatesData.total}</span>}
         </button>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center' }}>
-        <label>
-          Data Source:{' '}
-          <select
-            value={selectedSourceId}
-            onChange={(e) => {
-              setSelectedSourceId(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All Data Sources</option>
-            {dataSources?.items.map((ds) => (
-              <option key={ds.id} value={ds.id}>
-                {ds.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {activeTab === 'imports' && (
-          <label>
-            Status:{' '}
+      {/* Filter Toolbar (Reference 4) */}
+      <div className="rx-card" style={{ padding: '1rem 1.25rem', backgroundColor: '#FFFFFF' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '220px' }}>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--rx-text-secondary)' }}>
+              Data Source:
+            </span>
             <select
-              value={selectedStatus}
+              value={selectedSourceId}
               onChange={(e) => {
-                setSelectedStatus(e.target.value as any);
+                setSelectedSourceId(e.target.value);
                 setPage(1);
               }}
+              className="rx-select"
+              style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.8125rem' }}
             >
-              <option value="">All Statuses</option>
-              <option value="QUEUED">QUEUED</option>
-              <option value="PROCESSING">PROCESSING</option>
-              <option value="COMPLETED">COMPLETED</option>
-              <option value="FAILED">FAILED</option>
+              <option value="">All Data Sources</option>
+              {dataSources?.items.map((ds) => (
+                <option key={ds.id} value={ds.id}>
+                  {ds.name} ({ds.type})
+                </option>
+              ))}
             </select>
-          </label>
-        )}
+          </div>
+
+          {activeTab === 'imports' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '180px' }}>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--rx-text-secondary)' }}>
+                Status:
+              </span>
+              <select
+                value={selectedStatus}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value as any);
+                  setPage(1);
+                }}
+                className="rx-select"
+                style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.8125rem' }}
+              >
+                <option value="">All Statuses</option>
+                <option value="QUEUED">QUEUED</option>
+                <option value="PROCESSING">PROCESSING</option>
+                <option value="COMPLETED">COMPLETED</option>
+                <option value="FAILED">FAILED</option>
+              </select>
+            </div>
+          )}
+
+          {(selectedSourceId || selectedStatus) && (
+            <button
+              onClick={() => {
+                setSelectedSourceId('');
+                setSelectedStatus('');
+                setPage(1);
+              }}
+              className="rx-btn rx-btn-ghost rx-btn-sm"
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tab Content: Imports */}
@@ -166,49 +191,58 @@ export const ImportsPage: React.FC = () => {
             <EmptyState
               title="No Imports Found"
               description="No CSV files have been imported for this filter selection."
+              icon={<FileSpreadsheetIcon size={24} />}
               action={
                 permissions.canUploadCsv ? (
-                  <Link to={`/orgs/${orgId}/imports/new`}>
-                    <button>Upload CSV Now</button>
+                  <Link to={`/orgs/${orgId}/imports/new`} className="rx-btn rx-btn-lime">
+                    Upload CSV Now
                   </Link>
                 ) : undefined
               }
             />
           ) : (
-            <div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="rx-table-container">
+              <table className="rx-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc' }}>
-                    <th style={{ padding: '0.6rem' }}>Import ID</th>
-                    <th style={{ padding: '0.6rem' }}>Status</th>
-                    <th style={{ padding: '0.6rem' }}>Records</th>
-                    <th style={{ padding: '0.6rem' }}>Valid</th>
-                    <th style={{ padding: '0.6rem' }}>Invalid</th>
-                    <th style={{ padding: '0.6rem' }}>Duplicates</th>
-                    <th style={{ padding: '0.6rem' }}>Created At</th>
-                    <th style={{ padding: '0.6rem' }}>Actions</th>
+                  <tr>
+                    <th>Import ID</th>
+                    <th>Status</th>
+                    <th>Total Records</th>
+                    <th>Valid Imported</th>
+                    <th>Invalid (Errors)</th>
+                    <th>Duplicates</th>
+                    <th>Created At</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {importsData.items.map((imp) => (
-                    <tr key={imp.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '0.6rem' }}>
-                        <code>{imp.id.slice(0, 8)}...</code>
+                    <tr key={imp.id}>
+                      <td>
+                        <code className="rx-col-code">{imp.id.slice(0, 8)}...</code>
                       </td>
-                      <td style={{ padding: '0.6rem' }}>
+                      <td>
                         <StatusBadge status={imp.status} />
                       </td>
-                      <td style={{ padding: '0.6rem' }}>{imp.totalRecords}</td>
-                      <td style={{ padding: '0.6rem', color: 'green' }}>{imp.validRecords}</td>
-                      <td style={{ padding: '0.6rem', color: imp.invalidRecords > 0 ? 'red' : 'inherit' }}>
+                      <td style={{ fontWeight: 600 }}>{imp.totalRecords}</td>
+                      <td style={{ color: 'var(--rx-success)', fontWeight: 600 }}>{imp.validRecords}</td>
+                      <td style={{ color: imp.invalidRecords > 0 ? 'var(--rx-danger)' : 'var(--rx-text-secondary)', fontWeight: imp.invalidRecords > 0 ? 700 : 500 }}>
                         {imp.invalidRecords}
                       </td>
-                      <td style={{ padding: '0.6rem', color: imp.duplicateRecords > 0 ? 'orange' : 'inherit' }}>
+                      <td style={{ color: imp.duplicateRecords > 0 ? 'var(--rx-warning)' : 'var(--rx-text-secondary)', fontWeight: imp.duplicateRecords > 0 ? 700 : 500 }}>
                         {imp.duplicateRecords}
                       </td>
-                      <td style={{ padding: '0.6rem', fontSize: '0.85rem' }}>{formatDateTime(imp.createdAt)}</td>
-                      <td style={{ padding: '0.6rem' }}>
-                        <Link to={`/orgs/${orgId}/imports/${imp.id}`}>View & Errors &rarr;</Link>
+                      <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
+                        {formatDateTime(imp.createdAt)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Link
+                          to={`/orgs/${orgId}/imports/${imp.id}`}
+                          className="rx-btn rx-btn-secondary rx-btn-sm"
+                          style={{ display: 'inline-flex' }}
+                        >
+                          View & Errors <ArrowRightIcon size={13} />
+                        </Link>
                       </td>
                     </tr>
                   ))}
@@ -229,10 +263,25 @@ export const ImportsPage: React.FC = () => {
 
       {/* Tab Content: Duplicate Candidates Quarantine */}
       {activeTab === 'duplicates' && (
-        <div>
-          <div style={{ backgroundColor: '#fffbe6', border: '1px solid #ffe58f', padding: '0.75rem', marginBottom: '1rem' }}>
-            <strong>Quarantine Notice:</strong> The backend stores potential duplicate transaction candidates for
-            quarantine review. Per current API capabilities, this list is read-only.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div
+            style={{
+              backgroundColor: 'var(--rx-pale-yellow-light)',
+              border: '1px solid var(--rx-pale-yellow)',
+              padding: '0.85rem 1.25rem',
+              borderRadius: 'var(--rx-radius-md)',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              color: '#423E07',
+            }}
+          >
+            <AlertCircleIcon size={16} />
+            <div>
+              <strong>Quarantine Notice:</strong> The backend stores potential duplicate transaction candidates for
+              quarantine review. Per current API capabilities, this list is read-only.
+            </div>
           </div>
 
           {duplicatesLoading ? (
@@ -243,31 +292,36 @@ export const ImportsPage: React.FC = () => {
             <EmptyState
               title="No Duplicate Candidates Found"
               description="No duplicate transaction candidates are flagged in the quarantine."
+              icon={<CheckCircleIcon size={24} />}
             />
           ) : (
-            <div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="rx-table-container">
+              <table className="rx-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #ccc' }}>
-                    <th style={{ padding: '0.6rem' }}>Candidate ID</th>
-                    <th style={{ padding: '0.6rem' }}>Transaction ID</th>
-                    <th style={{ padding: '0.6rem' }}>Duplicate Of ID</th>
-                    <th style={{ padding: '0.6rem' }}>Status</th>
-                    <th style={{ padding: '0.6rem' }}>Confidence</th>
-                    <th style={{ padding: '0.6rem' }}>Reasons</th>
-                    <th style={{ padding: '0.6rem' }}>Flagged At</th>
+                  <tr>
+                    <th>Candidate ID</th>
+                    <th>Transaction ID</th>
+                    <th>Duplicate Of ID</th>
+                    <th>Status</th>
+                    <th>Confidence</th>
+                    <th>Reasons</th>
+                    <th>Flagged At</th>
                   </tr>
                 </thead>
                 <tbody>
                   {duplicatesData.items.map((dup) => (
-                    <tr key={dup.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '0.6rem' }}><code>{dup.id.slice(0, 8)}</code></td>
-                      <td style={{ padding: '0.6rem' }}><code>{dup.transactionId.slice(0, 8)}</code></td>
-                      <td style={{ padding: '0.6rem' }}><code>{dup.duplicateOfId.slice(0, 8)}</code></td>
-                      <td style={{ padding: '0.6rem' }}><StatusBadge status={dup.status} /></td>
-                      <td style={{ padding: '0.6rem' }}>{dup.confidenceScore ?? '—'}%</td>
-                      <td style={{ padding: '0.6rem', fontSize: '0.85rem' }}>{dup.reasons?.join(', ') || '—'}</td>
-                      <td style={{ padding: '0.6rem', fontSize: '0.85rem' }}>{formatDateTime(dup.createdAt)}</td>
+                    <tr key={dup.id}>
+                      <td><code className="rx-col-code">{dup.id.slice(0, 8)}</code></td>
+                      <td><code className="rx-col-code">{dup.transactionId.slice(0, 8)}</code></td>
+                      <td><code className="rx-col-code">{dup.duplicateOfId.slice(0, 8)}</code></td>
+                      <td><StatusBadge status={dup.status} /></td>
+                      <td style={{ fontWeight: 700 }}>{dup.confidenceScore ?? '—'}%</td>
+                      <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
+                        {dup.reasons?.join(', ') || '—'}
+                      </td>
+                      <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
+                        {formatDateTime(dup.createdAt)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

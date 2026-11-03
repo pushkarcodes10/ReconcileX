@@ -8,6 +8,12 @@ import { Pagination } from '../../shared/components/pagination';
 import { formatAmountMinor } from '../../shared/lib/amount';
 import { formatDateTime } from '../../shared/lib/date';
 import { ExceptionStatus } from '../../api/types';
+import {
+  AlertOctagonIcon,
+  SearchIcon,
+  UserIcon,
+  ArrowRightIcon,
+} from '../../shared/components/icons';
 
 export const ExceptionsPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
@@ -35,96 +41,125 @@ export const ExceptionsPage: React.FC = () => {
 
   if (!orgId) return null;
 
+  const statusPills: { label: string; value: ExceptionStatus | '' }[] = [
+    { label: 'All Exceptions', value: '' },
+    { label: 'Open', value: 'OPEN' },
+    { label: 'Assigned', value: 'ASSIGNED' },
+    { label: 'Under Review', value: 'UNDER_REVIEW' },
+    { label: 'Escalated', value: 'ESCALATED' },
+    { label: 'Resolved', value: 'RESOLVED' },
+  ];
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* Title */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ margin: 0 }}>Exceptions Management</h1>
-          <p style={{ margin: '0.25rem 0 0', color: '#666' }}>
+          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+            Exceptions Management
+          </h1>
+          <p style={{ margin: '0.25rem 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.9rem' }}>
             Investigate, assign, collaborate, and resolve discrepancies flagged during reconciliation.
           </p>
         </div>
       </div>
 
-      {/* Filter Controls */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center' }}>
-        <label>
-          Status:{' '}
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as any);
-              setPage(1);
-            }}
-          >
-            <option value="">All Statuses</option>
-            <option value="OPEN">OPEN</option>
-            <option value="ASSIGNED">ASSIGNED</option>
-            <option value="UNDER_REVIEW">UNDER_REVIEW</option>
-            <option value="ESCALATED">ESCALATED</option>
-            <option value="RESOLVED">RESOLVED</option>
-          </select>
-        </label>
+      {/* Reference 4 Filter & Search Toolbar */}
+      <div className="rx-card" style={{ padding: '1rem 1.25rem', backgroundColor: '#FFFFFF' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {statusPills.map((pill) => (
+              <button
+                key={pill.label}
+                onClick={() => {
+                  setStatus(pill.value);
+                  setPage(1);
+                }}
+                className={`rx-filter-pill ${status === pill.value ? 'active' : ''}`}
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
 
-        <label>
-          Search (Transaction ID / Reference):{' '}
-          <input
-            type="text"
-            placeholder="Search external ID..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setPage(1);
-            }}
-            style={{ padding: '0.3rem' }}
-          />
-        </label>
+          <div className="rx-search-box" style={{ minWidth: '260px' }}>
+            <SearchIcon size={14} />
+            <input
+              type="text"
+              placeholder="Search external ID or reference..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+              className="rx-input"
+              style={{ padding: '0.45rem 0.75rem 0.45rem 2.2rem', fontSize: '0.8125rem' }}
+            />
+          </div>
+        </div>
       </div>
 
+      {/* Reference 4 Professional Exception Work Queue Table */}
       {isLoading ? (
-        <LoadingState message="Loading exceptions list..." />
+        <LoadingState message="Loading exceptions work queue..." />
       ) : error ? (
         <ErrorState error={error} onRetry={() => refetch()} />
       ) : !data || data.items.length === 0 ? (
         <EmptyState
           title="No Exceptions Found"
           description="There are currently no reconciliation exceptions matching the selected filters."
+          icon={<AlertOctagonIcon size={24} />}
         />
       ) : (
-        <div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div className="rx-table-container">
+          <table className="rx-table">
             <thead>
-              <tr style={{ borderBottom: '2px solid #ccc' }}>
-                <th style={{ padding: '0.6rem' }}>Exception ID</th>
-                <th style={{ padding: '0.6rem' }}>Status</th>
-                <th style={{ padding: '0.6rem' }}>Transaction External ID</th>
-                <th style={{ padding: '0.6rem' }}>Amount</th>
-                <th style={{ padding: '0.6rem' }}>Assignee</th>
-                <th style={{ padding: '0.6rem' }}>Created At</th>
-                <th style={{ padding: '0.6rem' }}>Actions</th>
+              <tr>
+                <th>Exception ID</th>
+                <th>Status</th>
+                <th>Transaction External ID</th>
+                <th style={{ textAlign: 'right' }}>Amount</th>
+                <th>Assignee</th>
+                <th>Created At</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {data.items.map((ex) => (
-                <tr key={ex.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '0.6rem' }}>
-                    <code>{ex.id.slice(0, 8)}...</code>
+                <tr key={ex.id}>
+                  <td>
+                    <code className="rx-col-code">{ex.id.slice(0, 8)}...</code>
                   </td>
-                  <td style={{ padding: '0.6rem' }}>
+                  <td>
                     <StatusBadge status={ex.status} />
                   </td>
-                  <td style={{ padding: '0.6rem' }}>
-                    <code>{ex.transaction?.externalId || ex.transactionId.slice(0, 8)}</code>
+                  <td>
+                    <code className="rx-col-code" style={{ fontWeight: 600 }}>
+                      {ex.transaction?.externalId || ex.transactionId.slice(0, 8)}
+                    </code>
                   </td>
-                  <td style={{ padding: '0.6rem', fontWeight: 'bold' }}>
+                  <td className="rx-col-amount" style={{ color: 'var(--rx-text-primary)' }}>
                     {formatAmountMinor(ex.transaction?.amountMinor, ex.transaction?.currency)}
                   </td>
-                  <td style={{ padding: '0.6rem', color: ex.assigneeName ? '#333' : '#888' }}>
-                    {ex.assigneeName || 'Unassigned'}
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem' }}>
+                      <UserIcon size={13} style={{ color: ex.assigneeName ? 'var(--rx-text-primary)' : 'var(--rx-text-muted)' }} />
+                      <span style={{ color: ex.assigneeName ? 'var(--rx-text-primary)' : 'var(--rx-text-muted)', fontWeight: ex.assigneeName ? 600 : 400 }}>
+                        {ex.assigneeName || 'Unassigned'}
+                      </span>
+                    </div>
                   </td>
-                  <td style={{ padding: '0.6rem', fontSize: '0.85rem' }}>{formatDateTime(ex.createdAt)}</td>
-                  <td style={{ padding: '0.6rem' }}>
-                    <Link to={`/orgs/${orgId}/exceptions/${ex.id}`}>Open Review &rarr;</Link>
+                  <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
+                    {formatDateTime(ex.createdAt)}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <Link
+                      to={`/orgs/${orgId}/exceptions/${ex.id}`}
+                      className="rx-btn rx-btn-secondary rx-btn-sm"
+                      style={{ display: 'inline-flex' }}
+                    >
+                      Open Review <ArrowRightIcon size={13} />
+                    </Link>
                   </td>
                 </tr>
               ))}

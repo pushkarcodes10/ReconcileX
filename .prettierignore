@@ -2,5 +2,4 @@ node_modules
 dist
 coverage
 pnpm-lock.yaml
-backend_plan.md
 ReconcileX_PRD.md
