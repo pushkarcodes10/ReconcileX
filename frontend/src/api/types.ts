@@ -289,19 +289,20 @@ export interface DashboardExceptions {
 export interface AuditLog {
   id: string;
   organizationId: string;
-  actorId: string;
+  actorId?: string | null;
+  actorType?: string;
   action: string;
   entityType: string;
   entityId: string;
   metadata?: Record<string, any>;
-  ipAddress?: string;
-  userAgent?: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
   createdAt: string;
   actor?: {
     id: string;
     name: string;
     email: string;
-  };
+  } | null;
 }
 
 export type JobType = 'RECONCILIATION_RUN' | 'CSV_IMPORT';

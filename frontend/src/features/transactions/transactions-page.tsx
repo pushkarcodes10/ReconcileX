@@ -9,17 +9,20 @@ import { Pagination } from '../../shared/components/pagination';
 import { formatAmountMinor, toAmountMinor } from '../../shared/lib/amount';
 import { formatDate, formatDateTime } from '../../shared/lib/date';
 import { TransactionStatus, Transaction } from '../../api/types';
+import { useOrg } from '../../org/org-provider';
 import {
   SearchIcon,
   ReceiptIcon,
   ArrowUpRightIcon,
   ArrowDownLeftIcon,
   XIcon,
+  CameraIcon,
 } from '../../shared/components/icons';
 
 export const TransactionsPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const [searchParams] = useSearchParams();
+  const { permissions } = useOrg();
 
   const [page, setPage] = useState(1);
   const [limit] = useState(25);
@@ -80,6 +83,18 @@ export const TransactionsPage: React.FC = () => {
             Read-only financial transaction records across all ingested data sources.
           </p>
         </div>
+
+        {permissions.canUploadCsv && (
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <Link
+              to={`/orgs/${orgId}/transactions/screenshot`}
+              className="rx-btn rx-btn-lime"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}
+            >
+              <CameraIcon size={16} /> Upload Screenshot Receipt
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Reference 4 Filter & Search Toolbar */}

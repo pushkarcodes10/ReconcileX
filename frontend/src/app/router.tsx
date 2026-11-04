@@ -19,6 +19,7 @@ import { NewImportPage } from '../features/imports/new-import-page';
 import { ImportDetailPage } from '../features/imports/import-detail-page';
 import { TransactionsPage } from '../features/transactions/transactions-page';
 import { TransactionDetailPage } from '../features/transactions/transaction-detail-page';
+import { ScreenshotUploadPage } from '../features/screenshot/screenshot-upload-page';
 import { ReconciliationPage } from '../features/reconciliation/reconciliation-page';
 import { NewReconciliationRunPage } from '../features/reconciliation/new-reconciliation-run-page';
 import { ReconciliationDetailPage } from '../features/reconciliation/reconciliation-detail-page';
@@ -121,12 +122,28 @@ export const router = createBrowserRouter([
                 ),
               },
               {
+                path: 'imports/screenshot',
+                element: (
+                  <RequirePermission permission="canUploadCsv">
+                    <ScreenshotUploadPage />
+                  </RequirePermission>
+                ),
+              },
+              {
                 path: 'imports/:id',
                 element: <ImportDetailPage />,
               },
               {
                 path: 'transactions',
                 element: <TransactionsPage />,
+              },
+              {
+                path: 'transactions/screenshot',
+                element: (
+                  <RequirePermission permission="canUploadCsv">
+                    <ScreenshotUploadPage />
+                  </RequirePermission>
+                ),
               },
               {
                 path: 'transactions/:id',

@@ -19,6 +19,7 @@ import { ExceptionsModule } from './modules/exceptions/exceptions.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ScreenshotModule } from './modules/screenshot/screenshot.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     AuditModule,
     JobsModule,
     DashboardModule,
+    ScreenshotModule,
   ],
   providers: [
     {

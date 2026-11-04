@@ -138,17 +138,17 @@ export const JobDetailPage: React.FC = () => {
                         to={`/orgs/${orgId}/imports/${job.referenceId}`}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}
                       >
-                        View Associated Import Record (<code>{job.referenceId.slice(0, 8)}</code>) &rarr;
+                        View Associated Import Record (<code>{job.referenceId ? job.referenceId.slice(0, 8) : '—'}</code>) &rarr;
                       </Link>
                     ) : job.jobType === 'RECONCILIATION_RUN' ? (
                       <Link
                         to={`/orgs/${orgId}/reconciliation/${job.referenceId}`}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}
                       >
-                        View Associated Reconciliation Run (<code>{job.referenceId.slice(0, 8)}</code>) &rarr;
+                        View Associated Reconciliation Run (<code>{job.referenceId ? job.referenceId.slice(0, 8) : '—'}</code>) &rarr;
                       </Link>
                     ) : (
-                      <code>{job.referenceId}</code>
+                      <code>{job.referenceId || '—'}</code>
                     )}
                   </td>
                 </tr>

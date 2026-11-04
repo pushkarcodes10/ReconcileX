@@ -86,7 +86,7 @@ export const AuditLogDetailPage: React.FC = () => {
                   {log.actor ? (
                     <span><strong>{log.actor.name}</strong> ({log.actor.email})</span>
                   ) : (
-                    <code>{log.actorId}</code>
+                    <code>{log.actorId || log.actorType || 'SYSTEM'}</code>
                   )}
                 </td>
               </tr>

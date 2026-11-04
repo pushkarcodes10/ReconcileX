@@ -267,7 +267,9 @@ export const AuditLogsPage: React.FC = () => {
                 <tr style={{ borderBottom: '1px solid var(--rx-border-subtle)' }}>
                   <td style={{ padding: '0.5rem 0', color: 'var(--rx-text-secondary)' }}>Actor:</td>
                   <td style={{ padding: '0.5rem 0' }}>
-                    {selectedLog.actor ? `${selectedLog.actor.name} (${selectedLog.actor.email})` : selectedLog.actorId}
+                    {selectedLog.actor
+                      ? `${selectedLog.actor.name} (${selectedLog.actor.email})`
+                      : selectedLog.actorId || selectedLog.actorType || 'SYSTEM'}
                   </td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid var(--rx-border-subtle)' }}>

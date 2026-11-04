@@ -17,6 +17,7 @@ import {
   AlertOctagonIcon,
   CheckCircleIcon,
   AlertCircleIcon,
+  CameraIcon,
 } from '../../shared/components/icons';
 
 export const ImportsPage: React.FC = () => {
@@ -92,9 +93,18 @@ export const ImportsPage: React.FC = () => {
           </p>
         </div>
         {permissions.canUploadCsv && (
-          <Link to={`/orgs/${orgId}/imports/new`} className="rx-btn rx-btn-lime">
-            <PlusIcon size={16} /> Upload New CSV
-          </Link>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <Link
+              to={`/orgs/${orgId}/imports/screenshot`}
+              className="rx-btn rx-btn-secondary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
+            >
+              <CameraIcon size={16} /> Upload Screenshot
+            </Link>
+            <Link to={`/orgs/${orgId}/imports/new`} className="rx-btn rx-btn-lime">
+              <PlusIcon size={16} /> Upload New CSV
+            </Link>
+          </div>
         )}
       </div>
 

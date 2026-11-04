@@ -62,6 +62,9 @@ export const AppLayout: React.FC = () => {
       to: `/orgs/${activeOrgId}/transactions`,
       label: 'Transactions Explorer',
       icon: ReceiptIcon,
+      subAction: permissions.canUploadCsv
+        ? { to: `/orgs/${activeOrgId}/transactions/screenshot`, label: '+ Screenshot Receipt' }
+        : null,
     },
     {
       to: `/orgs/${activeOrgId}/reconciliation`,
