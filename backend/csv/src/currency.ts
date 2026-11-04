@@ -38,6 +38,26 @@ export function getCurrencyMinorUnitScale(currencyCode: string): number {
   return 2;
 }
 
+// Standard ISO 4217 3-letter currency codes
+const ISO_4217_CODES = new Set([
+  'AED', 'AFN', 'ALL', 'AMD', 'ANG', 'AOA', 'ARS', 'AUD', 'AWG', 'AZN',
+  'BAM', 'BBD', 'BDT', 'BGN', 'BHD', 'BIF', 'BMD', 'BND', 'BOB', 'BRL',
+  'BSD', 'BTN', 'BWP', 'BYN', 'BZD', 'CAD', 'CDF', 'CHF', 'CLP', 'CNY',
+  'COP', 'CRC', 'CUC', 'CUP', 'CVE', 'CZK', 'DJF', 'DKK', 'DOP', 'DZD',
+  'EGP', 'ERN', 'ETB', 'EUR', 'FJD', 'FKP', 'GBP', 'GEL', 'GHS', 'GIP',
+  'GMD', 'GNF', 'GTQ', 'GYD', 'HKD', 'HNL', 'HRK', 'HTG', 'HUF', 'IDR',
+  'ILS', 'INR', 'IQD', 'IRR', 'ISK', 'JMD', 'JOD', 'JPY', 'KES', 'KGS',
+  'KHR', 'KMF', 'KPW', 'KRW', 'KWD', 'KYD', 'KZT', 'LAK', 'LBP', 'LKR',
+  'LRD', 'LSL', 'LYD', 'MAD', 'MDL', 'MGA', 'MKD', 'MMK', 'MNT', 'MOP',
+  'MRU', 'MUR', 'MVR', 'MWK', 'MXN', 'MYR', 'MZN', 'NAD', 'NGN', 'NIO',
+  'NOK', 'NPR', 'NZD', 'OMR', 'PAB', 'PEN', 'PGK', 'PHP', 'PKR', 'PLN',
+  'PYG', 'QAR', 'RON', 'RSD', 'RUB', 'RWF', 'SAR', 'SBD', 'SCR', 'SDG',
+  'SEK', 'SGD', 'SHP', 'SLL', 'SOS', 'SRD', 'SSP', 'STN', 'SVC', 'SYP',
+  'SZL', 'THB', 'TJS', 'TMT', 'TND', 'TOP', 'TRY', 'TTD', 'TWD', 'TZS',
+  'UAH', 'UGX', 'USD', 'UYU', 'UZS', 'VES', 'VND', 'VUV', 'WST', 'XAF',
+  'XCD', 'XDR', 'XOF', 'XPF', 'YER', 'ZAR', 'ZMW', 'ZWL',
+]);
+
 /**
  * Validates and normalizes an ISO 4217 3-letter currency code.
  */
@@ -58,14 +78,14 @@ export function normalizeCurrency(
   }
 
   const str = String(rawValue).trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(str)) {
+  if (!/^[A-Z]{3}$/.test(str) || !ISO_4217_CODES.has(str)) {
     return {
       error: {
         rowNumber,
         field: 'currency',
         code: 'INVALID_CURRENCY',
         rawValue: String(rawValue),
-        message: `Invalid ISO currency code: "${rawValue}". Must be 3 alphabetic characters.`,
+        message: `Invalid ISO currency code: "${rawValue}". Must be a valid 3-letter ISO 4217 currency code.`,
       },
     };
   }

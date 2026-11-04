@@ -59,15 +59,15 @@ export function normalizeDate(
   let month: number | null = null;
   let day: number | null = null;
 
-  // 1. ISO 8601 with optional time: 2024-03-01T14:30:00Z or 2024-03-01 14:30:00
-  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s].*)?$/);
+  // 1. ISO 8601 with optional time: 2024-03-01T14:30:00Z or 2024-03-01 14:30:00 or 2024.03.01
+  const isoMatch = str.match(/^(\d{4})[-/. ](\d{1,2})[-/. ](\d{1,2})(?:[T\s].*)?$/);
   if (isoMatch) {
     year = parseInt(isoMatch[1], 10);
     month = parseInt(isoMatch[2], 10);
     day = parseInt(isoMatch[3], 10);
   } else {
     // 2. Day/Month/Year or Month/Day/Year: DD[-/]MM[-/]YYYY or MM[-/]DD[-/]YYYY
-    const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    const dmyMatch = str.match(/^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4})(?:[T\s].*)?$/);
     if (dmyMatch) {
       const part1 = parseInt(dmyMatch[1], 10);
       const part2 = parseInt(dmyMatch[2], 10);

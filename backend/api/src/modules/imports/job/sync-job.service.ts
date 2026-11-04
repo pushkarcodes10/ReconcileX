@@ -81,7 +81,8 @@ export class SyncJobService implements JobService {
         throw new Error(`Data source ${dataSourceId} not found for organization ${organizationId}`);
       }
 
-      const columnMapping = dataSource.columnMapping as unknown as Record<string, string>;
+      const columnMapping =
+        options?.columnMapping || (dataSource.columnMapping as unknown as Record<string, string>);
 
       // 3. Get file stream from storage
       const stream = await this.storageService.getObjectStream(importRecord.storageKey);
@@ -103,7 +104,6 @@ export class SyncJobService implements JobService {
         // Flush row errors
         if (batchRowErrors.length > 0) {
           await this.importsRepo.createRowErrors(batchRowErrors);
-          invalidCount += batchRowErrors.length;
           batchRowErrors = [];
         }
 
@@ -129,6 +129,7 @@ export class SyncJobService implements JobService {
                 existingTransactionId: existing.id,
                 candidateFingerprint: txn.fingerprint,
                 externalId: txn.externalId,
+                rowNumber: (txn as unknown as { _rowNumber?: number })._rowNumber,
                 reason: 'EXISTING_EXTERNAL_ID',
                 status: 'FLAGGED',
               });
@@ -179,6 +180,7 @@ export class SyncJobService implements JobService {
         totalRows++;
 
         if (rowResult.errors && rowResult.errors.length > 0) {
+          invalidCount++;
           for (const err of rowResult.errors) {
             batchRowErrors.push({
               organizationId,
@@ -208,7 +210,7 @@ export class SyncJobService implements JobService {
             duplicateCount++;
           } else {
             seenExternalIdsInFile.add(row.externalId);
-            batchValidTxns.push({
+            const txnToInsert: NewTransaction & { _rowNumber?: number } = {
               organizationId,
               dataSourceId,
               importId,
@@ -223,7 +225,9 @@ export class SyncJobService implements JobService {
               status: 'UNMATCHED',
               normalizedPayload: row.normalizedPayload,
               fingerprint: row.fingerprint,
-            });
+              _rowNumber: row.rowNumber,
+            };
+            batchValidTxns.push(txnToInsert);
           }
         }
 

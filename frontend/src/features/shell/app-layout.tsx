@@ -148,44 +148,52 @@ export const AppLayout: React.FC = () => {
                 const Icon = item.icon;
                 const isActive = location.pathname.startsWith(item.to);
                 return (
-                  <li key={item.to}>
+                  <li key={item.to} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <NavLink
                       to={item.to}
                       style={{
+                        flex: 1,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: '0.6rem 0.85rem',
+                        padding: item.subAction ? '0.6rem 2.25rem 0.6rem 0.85rem' : '0.6rem 0.85rem',
                         borderRadius: 'var(--rx-radius-md)',
                         fontSize: '0.85rem',
                         fontWeight: isActive ? 700 : 500,
                         backgroundColor: isActive ? 'var(--rx-lime)' : 'transparent',
                         color: isActive ? 'var(--rx-dark)' : 'var(--rx-text-secondary)',
                         transition: 'var(--rx-transition)',
+                        textDecoration: 'none',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <Icon size={18} style={{ color: isActive ? 'var(--rx-dark)' : 'var(--rx-text-secondary)' }} />
                         <span>{item.label}</span>
                       </div>
-                      {item.subAction && (
-                        <Link
-                          to={item.subAction.to}
-                          onClick={(e) => e.stopPropagation()}
-                          title={item.subAction.label}
-                          style={{
-                            padding: '0.15rem 0.4rem',
-                            borderRadius: 'var(--rx-radius-sm)',
-                            backgroundColor: isActive ? 'rgba(0,0,0,0.1)' : 'var(--rx-surface-subtle)',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            color: isActive ? 'var(--rx-dark)' : 'var(--rx-text-primary)',
-                          }}
-                        >
-                          <PlusIcon size={12} />
-                        </Link>
-                      )}
                     </NavLink>
+                    {item.subAction && (
+                      <Link
+                        to={item.subAction.to}
+                        title={item.subAction.label}
+                        style={{
+                          position: 'absolute',
+                          right: '0.6rem',
+                          padding: '0.15rem 0.4rem',
+                          borderRadius: 'var(--rx-radius-sm)',
+                          backgroundColor: isActive ? 'rgba(0,0,0,0.1)' : 'var(--rx-surface-subtle)',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          color: isActive ? 'var(--rx-dark)' : 'var(--rx-text-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          textDecoration: 'none',
+                          zIndex: 2,
+                        }}
+                      >
+                        <PlusIcon size={12} />
+                      </Link>
+                    )}
                   </li>
                 );
               })}

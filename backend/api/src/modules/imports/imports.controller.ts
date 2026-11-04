@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -81,8 +82,21 @@ export class ImportsController {
     @Param('orgId') orgId: string,
     @Param('id') dataSourceId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body('columnMapping') rawColumnMapping?: string | Record<string, string>,
   ): Promise<UploadImportResponseDto> {
-    return this.importsService.uploadAndIngest(orgId, dataSourceId, file);
+    let columnMapping: Record<string, string> | undefined;
+    if (rawColumnMapping) {
+      if (typeof rawColumnMapping === 'string') {
+        try {
+          columnMapping = JSON.parse(rawColumnMapping);
+        } catch {
+          columnMapping = undefined;
+        }
+      } else if (typeof rawColumnMapping === 'object') {
+        columnMapping = rawColumnMapping;
+      }
+    }
+    return this.importsService.uploadAndIngest(orgId, dataSourceId, file, columnMapping);
   }
 
   @Get('imports')

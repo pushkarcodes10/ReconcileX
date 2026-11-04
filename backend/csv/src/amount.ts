@@ -1,6 +1,41 @@
 import { getCurrencyMinorUnitScale } from './currency';
 import { RowError } from './types';
 
+export const PERMITTED_NEGATIVE_TXN_TYPES = new Set([
+  'REFUND',
+  'CHARGEBACK',
+  'REVERSAL',
+  'RETURN',
+  'FEE',
+  'DISPUTE',
+  'ADJUSTMENT',
+  'PAYOUT',
+  'WITHDRAWAL',
+  'EXPENSE',
+]);
+
+export const VALID_TXN_TYPES = new Set([
+  'SALE',
+  'CAPTURE',
+  'AUTHORIZATION',
+  'SETTLEMENT',
+  'REFUND',
+  'CHARGEBACK',
+  'REVERSAL',
+  'FEE',
+  'DISPUTE',
+  'PAYMENT',
+  'PAYOUT',
+  'TRANSFER',
+  'ADJUSTMENT',
+  'INVOICE',
+  'ORDER',
+  'DEPOSIT',
+  'WITHDRAWAL',
+  'CREDIT',
+  'DEBIT',
+]);
+
 /**
  * Normalizes a raw monetary amount string into integer minor units without using floating-point math.
  *
@@ -15,6 +50,7 @@ export function normalizeAmount(
   rawValue: unknown,
   currency: string,
   rowNumber: number = 0,
+  txnType?: string | null,
 ): { amountMinor?: number; error?: RowError } {
   if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
     return {
@@ -118,6 +154,33 @@ export function normalizeAmount(
   try {
     const rawBig = BigInt(combinedStr);
     const signedVal = isNegative ? -rawBig : rawBig;
+
+    if (signedVal === 0n) {
+      return {
+        error: {
+          rowNumber,
+          field: 'amount',
+          code: 'INVALID_AMOUNT',
+          rawValue: String(rawValue),
+          message: `Monetary amount cannot be zero.`,
+        },
+      };
+    }
+
+    if (isNegative && txnType) {
+      const normType = txnType.trim().toUpperCase();
+      if (!PERMITTED_NEGATIVE_TXN_TYPES.has(normType)) {
+        return {
+          error: {
+            rowNumber,
+            field: 'amount',
+            code: 'INVALID_AMOUNT',
+            rawValue: String(rawValue),
+            message: `Negative monetary amounts are not permitted for transaction type "${txnType}". Only refunds, chargebacks, reversals, fees, and adjustments may be negative.`,
+          },
+        };
+      }
+    }
 
     // Check JavaScript safe integer bounds
     if (

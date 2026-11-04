@@ -47,6 +47,7 @@ export class ImportsService {
     organizationId: string,
     dataSourceId: string,
     file: Express.Multer.File | undefined,
+    columnMapping?: Record<string, string>,
   ): Promise<UploadImportResponseDto> {
     if (!file) {
       throw new BadRequestException('CSV file is required');
@@ -85,6 +86,17 @@ export class ImportsService {
       );
     }
 
+    // 3b. Update column mapping if provided
+    if (columnMapping && Object.keys(columnMapping).length > 0) {
+      const mergedMapping = {
+        ...(dataSource.columnMapping as unknown as Record<string, string>),
+        ...columnMapping,
+      };
+      await this.dataSourcesRepo.update(organizationId, dataSourceId, {
+        columnMapping: mergedMapping as any,
+      });
+    }
+
     // 4. Compute file SHA-256 for idempotent deduplication
     const contentSha256 = createHash('sha256').update(file.buffer).digest('hex');
 
@@ -101,6 +113,14 @@ export class ImportsService {
         importId: existing.id,
         status: existing.status as ImportStatus,
         duplicateFile: true,
+        rowCount: existing.rowCount,
+        validCount: existing.validCount,
+        invalidCount: existing.invalidCount,
+        duplicateCount: existing.duplicateCount,
+        totalRecords: existing.rowCount,
+        validRecords: existing.validCount,
+        invalidRecords: existing.invalidCount,
+        duplicateRecords: existing.duplicateCount,
       };
     }
 
@@ -123,7 +143,9 @@ export class ImportsService {
     });
 
     // 8. Submit to JobService (executes synchronously in Milestone A)
-    const jobResult = await this.jobService.submitImport(newImport);
+    const jobResult = await this.jobService.submitImport(newImport, {
+      columnMapping,
+    });
 
     const updated = await this.importsRepo.findImportById(organizationId, newImport.id);
 
@@ -132,6 +154,14 @@ export class ImportsService {
       importId: newImport.id,
       status: (updated?.status ?? 'PROCESSING') as ImportStatus,
       duplicateFile: false,
+      rowCount: updated?.rowCount ?? 0,
+      validCount: updated?.validCount ?? 0,
+      invalidCount: updated?.invalidCount ?? 0,
+      duplicateCount: updated?.duplicateCount ?? 0,
+      totalRecords: updated?.rowCount ?? 0,
+      validRecords: updated?.validCount ?? 0,
+      invalidRecords: updated?.invalidCount ?? 0,
+      duplicateRecords: updated?.duplicateCount ?? 0,
     };
   }
 
@@ -147,7 +177,13 @@ export class ImportsService {
     if (!record) {
       throw new NotFoundException(`Import with ID "${id}" not found`);
     }
-    return record;
+    return {
+      ...record,
+      totalRecords: record.rowCount,
+      validRecords: record.validCount,
+      invalidRecords: record.invalidCount,
+      duplicateRecords: record.duplicateCount,
+    };
   }
 
   async getImportErrors(
@@ -169,6 +205,10 @@ export class ImportsService {
       validCount: record.validCount,
       invalidCount: record.invalidCount,
       duplicateCount: record.duplicateCount,
+      totalRecords: record.rowCount,
+      validRecords: record.validCount,
+      invalidRecords: record.invalidCount,
+      duplicateRecords: record.duplicateCount,
       completedAt: record.completedAt,
     };
   }

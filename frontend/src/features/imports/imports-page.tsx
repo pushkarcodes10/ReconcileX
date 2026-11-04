@@ -50,6 +50,13 @@ export const ImportsPage: React.FC = () => {
         status: (selectedStatus as ImportStatus) || undefined,
       }),
     enabled: !!orgId && activeTab === 'imports',
+    refetchInterval: (query) => {
+      const items = query.state.data?.items;
+      const hasActive = items?.some(
+        (i) => i.status === 'QUEUED' || i.status === 'PROCESSING'
+      );
+      return hasActive ? 2500 : false;
+    },
   });
 
   // 3. Duplicate Candidates query (Quarantine)
@@ -224,13 +231,13 @@ export const ImportsPage: React.FC = () => {
                       <td>
                         <StatusBadge status={imp.status} />
                       </td>
-                      <td style={{ fontWeight: 600 }}>{imp.totalRecords}</td>
-                      <td style={{ color: 'var(--rx-success)', fontWeight: 600 }}>{imp.validRecords}</td>
-                      <td style={{ color: imp.invalidRecords > 0 ? 'var(--rx-danger)' : 'var(--rx-text-secondary)', fontWeight: imp.invalidRecords > 0 ? 700 : 500 }}>
-                        {imp.invalidRecords}
+                      <td style={{ fontWeight: 600 }}>{imp.totalRecords ?? imp.rowCount ?? 0}</td>
+                      <td style={{ color: 'var(--rx-success)', fontWeight: 600 }}>{imp.validRecords ?? imp.validCount ?? 0}</td>
+                      <td style={{ color: (imp.invalidRecords ?? imp.invalidCount ?? 0) > 0 ? 'var(--rx-danger)' : 'var(--rx-text-secondary)', fontWeight: (imp.invalidRecords ?? imp.invalidCount ?? 0) > 0 ? 700 : 500 }}>
+                        {imp.invalidRecords ?? imp.invalidCount ?? 0}
                       </td>
-                      <td style={{ color: imp.duplicateRecords > 0 ? 'var(--rx-warning)' : 'var(--rx-text-secondary)', fontWeight: imp.duplicateRecords > 0 ? 700 : 500 }}>
-                        {imp.duplicateRecords}
+                      <td style={{ color: (imp.duplicateRecords ?? imp.duplicateCount ?? 0) > 0 ? 'var(--rx-warning)' : 'var(--rx-text-secondary)', fontWeight: (imp.duplicateRecords ?? imp.duplicateCount ?? 0) > 0 ? 700 : 500 }}>
+                        {imp.duplicateRecords ?? imp.duplicateCount ?? 0}
                       </td>
                       <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
                         {formatDateTime(imp.createdAt)}

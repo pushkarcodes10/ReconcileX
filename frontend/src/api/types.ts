@@ -94,14 +94,19 @@ export interface ImportRecord {
   organizationId: string;
   dataSourceId: string;
   status: ImportStatus;
-  totalRecords: number;
-  validRecords: number;
-  invalidRecords: number;
-  duplicateRecords: number;
-  duplicateFile?: string;
+  totalRecords?: number;
+  validRecords?: number;
+  invalidRecords?: number;
+  duplicateRecords?: number;
+  rowCount?: number;
+  validCount?: number;
+  invalidCount?: number;
+  duplicateCount?: number;
+  duplicateFile?: boolean | string;
   errorSummary?: Record<string, any>;
   createdAt: string;
   updatedAt?: string;
+  completedAt?: string;
 }
 
 export interface ImportError {

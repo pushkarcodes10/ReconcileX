@@ -10,6 +10,7 @@ export const OPTIONAL_CANONICAL_FIELDS = [
 export const ALL_CANONICAL_FIELDS = [
   ...REQUIRED_CANONICAL_FIELDS,
   ...OPTIONAL_CANONICAL_FIELDS,
+  'transaction_date',
 ] as const;
 
 export type CanonicalField = (typeof ALL_CANONICAL_FIELDS)[number];
@@ -44,3 +45,4 @@ export interface StreamParseRowResult {
   normalizedRow?: NormalizedRow;
   errors?: RowError[];
 }
+

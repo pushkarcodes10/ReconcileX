@@ -27,7 +27,7 @@ export class DataSourcesService {
   private normalizeColumnMapping(mapping: ColumnMappingDto): ColumnMappingDto {
     const external_id = (mapping.external_id || mapping.externalId || '').trim();
     const amount = (mapping.amount || '').trim();
-    const date = (mapping.date || mapping.transactionDate || '').trim();
+    const date = (mapping.date || mapping.transactionDate || (mapping as any).transaction_date || '').trim();
     const currency = (mapping.currency || '').trim();
 
     if (!external_id || !amount || !date || !currency) {

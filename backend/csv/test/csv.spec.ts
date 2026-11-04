@@ -7,6 +7,7 @@ import {
   normalizeCurrency,
   normalizeDate,
   parseCsvStream,
+  suggestColumnMapping,
   validateHeadersAndMapping,
 } from '../src';
 
@@ -172,11 +173,26 @@ describe('backend/csv unit tests', () => {
       ).toBe(true);
     });
 
-    it('should reject mapped headers not present in CSV', () => {
+    it('should reject mapped headers not present in CSV for required canonical fields', () => {
       const rawHeaders = ['Order ID', 'Transaction Amount', 'Currency'];
       const res = validateHeadersAndMapping(rawHeaders, validMapping);
       expect(res.valid).toBe(false);
       expect(res.errors.some((e) => e.includes('Payment Date'))).toBe(true);
+    });
+
+    it('should allow optional canonical fields in mapping to be absent from CSV', () => {
+      const mappingWithOptional = {
+        external_id: 'Order ID',
+        amount: 'Transaction Amount',
+        date: 'Payment Date',
+        currency: 'Currency',
+        reference: 'Missing Reference Header',
+      };
+      const rawHeaders = ['Order ID', 'Transaction Amount', 'Payment Date', 'Currency'];
+      const res = validateHeadersAndMapping(rawHeaders, mappingWithOptional);
+      expect(res.valid).toBe(true);
+      expect(res.errors).toHaveLength(0);
+      expect(res.fieldToHeaderIndex.has('reference')).toBe(false);
     });
 
     it('should detect duplicate headers in CSV', () => {
@@ -267,6 +283,182 @@ describe('backend/csv unit tests', () => {
       expect(results[0].rowNumber).toBe(1);
       expect(results[0].errors).toBeDefined();
       expect(results[0].errors![0].code).toBe('INVALID_HEADERS');
+    });
+
+    it('should support transaction_date as canonical field alias', async () => {
+      const csvContent = [
+        'external_id,amount,transaction_date,currency',
+        'TX-101,500.00,2026-10-21,INR',
+      ].join('\n');
+
+      const stream = Readable.from(Buffer.from(csvContent));
+      const generator = parseCsvStream(stream, {
+        external_id: 'external_id',
+        amount: 'amount',
+        transaction_date: 'transaction_date',
+        currency: 'currency',
+      });
+
+      const results = [];
+      for await (const item of generator) {
+        results.push(item);
+      }
+
+      expect(results).toHaveLength(1);
+      expect(results[0].normalizedRow?.externalId).toBe('TX-101');
+      expect(results[0].normalizedRow?.transactionDate).toBe('2026-10-21');
+    });
+
+    it('should reject negative amount for CAPTURE but allow for REFUND', async () => {
+      const csvContent = [
+        'external_id,amount,transaction_date,currency,txn_type',
+        'TX-BAD,-10.00,2026-10-21,INR,CAPTURE',
+        'TX-GOOD,-10.00,2026-10-21,INR,REFUND',
+      ].join('\n');
+
+      const stream = Readable.from(Buffer.from(csvContent));
+      const generator = parseCsvStream(stream, {
+        external_id: 'external_id',
+        amount: 'amount',
+        transaction_date: 'transaction_date',
+        currency: 'currency',
+        txn_type: 'txn_type',
+      });
+
+      const results = [];
+      for await (const item of generator) {
+        results.push(item);
+      }
+
+      expect(results).toHaveLength(2);
+      expect(results[0].errors).toBeDefined();
+      expect(results[0].errors![0].code).toBe('INVALID_AMOUNT');
+      expect(results[1].normalizedRow?.amountMinor).toBe(-1000);
+    });
+
+    it('should reject zero amount', async () => {
+      const csvContent = [
+        'external_id,amount,transaction_date,currency',
+        'TX-ZERO,0.00,2026-10-21,INR',
+      ].join('\n');
+
+      const stream = Readable.from(Buffer.from(csvContent));
+      const generator = parseCsvStream(stream, {
+        external_id: 'external_id',
+        amount: 'amount',
+        transaction_date: 'transaction_date',
+        currency: 'currency',
+      });
+
+      const results = [];
+      for await (const item of generator) {
+        results.push(item);
+      }
+
+      expect(results).toHaveLength(1);
+      expect(results[0].errors).toBeDefined();
+      expect(results[0].errors![0].code).toBe('INVALID_AMOUNT');
+    });
+
+    it('should report missing reference when reference column is mapped but cell is empty', async () => {
+      const csvContent = [
+        'external_id,amount,transaction_date,currency,reference',
+        'TX-NO-REF,100.00,2026-10-21,INR,',
+      ].join('\n');
+
+      const stream = Readable.from(Buffer.from(csvContent));
+      const generator = parseCsvStream(stream, {
+        external_id: 'external_id',
+        amount: 'amount',
+        transaction_date: 'transaction_date',
+        currency: 'currency',
+        reference: 'reference',
+      });
+
+      const results = [];
+      for await (const item of generator) {
+        results.push(item);
+      }
+
+      expect(results).toHaveLength(1);
+      expect(results[0].errors).toBeDefined();
+      expect(results[0].errors![0].field).toBe('reference');
+      expect(results[0].errors![0].code).toBe('MISSING_REQUIRED_FIELD');
+    });
+
+    it('should parse semicolon-delimited CSV files', async () => {
+      const csvContent = [
+        'external_id;amount;transaction_date;currency',
+        'TX-SEMI;250.75;2026-10-21;EUR',
+      ].join('\n');
+
+      const stream = Readable.from(Buffer.from(csvContent));
+      const generator = parseCsvStream(stream, {
+        external_id: 'external_id',
+        amount: 'amount',
+        transaction_date: 'transaction_date',
+        currency: 'currency',
+      });
+
+      const results = [];
+      for await (const item of generator) {
+        results.push(item);
+      }
+
+      expect(results).toHaveLength(1);
+      expect(results[0].normalizedRow?.externalId).toBe('TX-SEMI');
+      expect(results[0].normalizedRow?.amountMinor).toBe(25075);
+    });
+
+    it('should handle quoted fields containing commas', async () => {
+      const csvContent = [
+        'external_id,amount,transaction_date,currency,reference',
+        'TX-QUOTE,"1,500.00",2026-10-21,USD,"REF, WITH, COMMAS"',
+      ].join('\n');
+
+      const stream = Readable.from(Buffer.from(csvContent));
+      const generator = parseCsvStream(stream, {
+        external_id: 'external_id',
+        amount: 'amount',
+        transaction_date: 'transaction_date',
+        currency: 'currency',
+        reference: 'reference',
+      });
+
+      const results = [];
+      for await (const item of generator) {
+        results.push(item);
+      }
+
+      expect(results).toHaveLength(1);
+      expect(results[0].normalizedRow?.amountMinor).toBe(150000);
+      expect(results[0].normalizedRow?.reference).toBe('REF, WITH, COMMAS');
+    });
+  });
+
+  describe('suggestColumnMapping', () => {
+    it('should automatically suggest canonical mappings for standard headers', () => {
+      const headers = [
+        '\uFEFFexternal_id',
+        'amount',
+        'currency',
+        'transaction_date',
+        'reference',
+        'external_txn_id',
+        'merchant_or_order_id',
+        'txn_type',
+        'city',
+      ];
+      const suggested = suggestColumnMapping(headers);
+
+      expect(suggested.external_id).toBe('external_id');
+      expect(suggested.amount).toBe('amount');
+      expect(suggested.currency).toBe('currency');
+      expect(suggested.transaction_date).toBe('transaction_date');
+      expect(suggested.reference).toBe('reference');
+      expect(suggested.external_txn_id).toBe('external_txn_id');
+      expect(suggested.merchant_or_order_id).toBe('merchant_or_order_id');
+      expect(suggested.txn_type).toBe('txn_type');
     });
   });
 });

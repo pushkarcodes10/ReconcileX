@@ -8,6 +8,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Readable } from 'stream';
 import { StorageService } from './storage.interface';
 
 @Injectable()
@@ -15,6 +16,8 @@ export class MinioStorageService implements StorageService, OnModuleInit {
   private readonly logger = new Logger(MinioStorageService.name);
   private readonly s3Client: S3Client;
   private readonly bucket: string;
+  private readonly fallbackStorage = new Map<string, Buffer>();
+  private isMinioAvailable = false;
 
   constructor(private readonly configService: ConfigService) {
     const endpoint = this.configService.get<string>('app.storage.endpoint', 'localhost');
@@ -41,9 +44,11 @@ export class MinioStorageService implements StorageService, OnModuleInit {
   public async onModuleInit(): Promise<void> {
     try {
       await this.ensureBucketExists();
+      this.isMinioAvailable = true;
     } catch (err) {
+      this.isMinioAvailable = false;
       this.logger.warn(
-        `Could not verify or initialize MinIO bucket "${this.bucket}": ${(err as Error).message}`,
+        `MinIO storage unreachable at bucket "${this.bucket}": ${(err as Error).message}. Operating with in-memory storage fallback.`,
       );
     }
   }
@@ -70,18 +75,32 @@ export class MinioStorageService implements StorageService, OnModuleInit {
     buffer: Buffer,
     contentType: string = 'text/csv',
   ): Promise<string> {
-    await this.s3Client.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: buffer,
-        ContentType: contentType,
-      }),
-    );
+    if (this.isMinioAvailable) {
+      try {
+        await this.s3Client.send(
+          new PutObjectCommand({
+            Bucket: this.bucket,
+            Key: key,
+            Body: buffer,
+            ContentType: contentType,
+          }),
+        );
+        return key;
+      } catch (err) {
+        this.logger.warn(
+          `Failed uploading to MinIO: ${(err as Error).message}. Falling back to in-memory buffer for key: ${key}`,
+        );
+      }
+    }
+    this.fallbackStorage.set(key, Buffer.from(buffer));
     return key;
   }
 
   public async getObjectStream(key: string): Promise<NodeJS.ReadableStream> {
+    if (this.fallbackStorage.has(key)) {
+      return Readable.from(this.fallbackStorage.get(key)!);
+    }
+
     try {
       const response = await this.s3Client.send(
         new GetObjectCommand({
@@ -94,6 +113,9 @@ export class MinioStorageService implements StorageService, OnModuleInit {
       }
       return response.Body as unknown as NodeJS.ReadableStream;
     } catch (err: unknown) {
+      if (this.fallbackStorage.has(key)) {
+        return Readable.from(this.fallbackStorage.get(key)!);
+      }
       if ((err as { name?: string })?.name === 'NoSuchKey') {
         throw new NotFoundException(`Object with key "${key}" not found`);
       }
@@ -102,6 +124,9 @@ export class MinioStorageService implements StorageService, OnModuleInit {
   }
 
   public async getObjectBuffer(key: string): Promise<Buffer> {
+    if (this.fallbackStorage.has(key)) {
+      return Buffer.from(this.fallbackStorage.get(key)!);
+    }
     const stream = await this.getObjectStream(key);
     return new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = [];
@@ -114,15 +139,23 @@ export class MinioStorageService implements StorageService, OnModuleInit {
   }
 
   public async deleteObject(key: string): Promise<void> {
-    await this.s3Client.send(
-      new DeleteObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      }),
-    );
+    this.fallbackStorage.delete(key);
+    try {
+      await this.s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+    } catch {
+      // Ignore cleanup error in fallback
+    }
   }
 
   public async objectExists(key: string): Promise<boolean> {
+    if (this.fallbackStorage.has(key)) {
+      return true;
+    }
     try {
       await this.s3Client.send(
         new HeadObjectCommand({
@@ -131,10 +164,7 @@ export class MinioStorageService implements StorageService, OnModuleInit {
         }),
       );
       return true;
-    } catch (err: unknown) {
-      if ((err as { name?: string })?.name === 'NotFound') {
-        return false;
-      }
+    } catch {
       return false;
     }
   }

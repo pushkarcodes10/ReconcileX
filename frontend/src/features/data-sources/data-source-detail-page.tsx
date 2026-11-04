@@ -182,7 +182,7 @@ export const DataSourceDetailPage: React.FC = () => {
             <tbody>
               <tr>
                 <td><strong>External Transaction ID</strong></td>
-                <td><code className="rx-col-code">{dataSource.columnMapping?.external_id}</code></td>
+                <td><code className="rx-col-code">{dataSource.columnMapping?.external_id || (dataSource.columnMapping as any)?.externalId}</code></td>
                 <td><span style={{ color: 'var(--rx-danger)', fontWeight: 600, fontSize: '0.75rem' }}>Required</span></td>
               </tr>
               <tr>
@@ -192,7 +192,7 @@ export const DataSourceDetailPage: React.FC = () => {
               </tr>
               <tr>
                 <td><strong>Transaction Date</strong></td>
-                <td><code className="rx-col-code">{dataSource.columnMapping?.date}</code></td>
+                <td><code className="rx-col-code">{dataSource.columnMapping?.date || (dataSource.columnMapping as any)?.transaction_date || (dataSource.columnMapping as any)?.transactionDate}</code></td>
                 <td><span style={{ color: 'var(--rx-danger)', fontWeight: 600, fontSize: '0.75rem' }}>Required</span></td>
               </tr>
               <tr>

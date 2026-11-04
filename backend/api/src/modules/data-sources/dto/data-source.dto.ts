@@ -20,7 +20,7 @@ export class ColumnMappingDto {
     description: 'CSV header name representing unique transaction ID',
     example: 'Order ID',
   })
-  @Transform(({ obj, value }) => value || obj?.externalId)
+  @Transform(({ obj, value }) => value || obj?.externalId || obj?.external_id)
   @IsString()
   @IsNotEmpty()
   external_id!: string;
@@ -37,7 +37,7 @@ export class ColumnMappingDto {
     description: 'CSV header name representing transaction date',
     example: 'Payment Date',
   })
-  @Transform(({ obj, value }) => value || obj?.transactionDate)
+  @Transform(({ obj, value }) => value || obj?.transactionDate || obj?.transaction_date)
   @IsString()
   @IsNotEmpty()
   date!: string;

@@ -343,13 +343,13 @@ export const DataSourcesPage: React.FC = () => {
                   <td>
                     <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', fontSize: '0.75rem', fontFamily: 'var(--rx-font-mono)' }}>
                       <span style={{ backgroundColor: 'var(--rx-surface-subtle)', border: '1px solid var(--rx-border)', padding: '0.1rem 0.35rem', borderRadius: '3px' }}>
-                        id: {ds.columnMapping?.external_id}
+                        id: {ds.columnMapping?.external_id || (ds.columnMapping as any)?.externalId}
                       </span>
                       <span style={{ backgroundColor: 'var(--rx-surface-subtle)', border: '1px solid var(--rx-border)', padding: '0.1rem 0.35rem', borderRadius: '3px' }}>
                         amt: {ds.columnMapping?.amount}
                       </span>
                       <span style={{ backgroundColor: 'var(--rx-surface-subtle)', border: '1px solid var(--rx-border)', padding: '0.1rem 0.35rem', borderRadius: '3px' }}>
-                        date: {ds.columnMapping?.date}
+                        date: {ds.columnMapping?.date || (ds.columnMapping as any)?.transaction_date || (ds.columnMapping as any)?.transactionDate}
                       </span>
                     </div>
                   </td>

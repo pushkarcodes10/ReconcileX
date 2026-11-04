@@ -15,6 +15,30 @@ export class UploadImportResponseDto {
 
   @ApiPropertyOptional({ description: 'Indicates if the file was identical to a previous import' })
   duplicateFile?: boolean;
+
+  @ApiPropertyOptional({ description: 'Total row count processed' })
+  rowCount?: number;
+
+  @ApiPropertyOptional({ description: 'Number of successfully imported rows' })
+  validCount?: number;
+
+  @ApiPropertyOptional({ description: 'Number of rows with validation errors' })
+  invalidCount?: number;
+
+  @ApiPropertyOptional({ description: 'Number of rows flagged as duplicates' })
+  duplicateCount?: number;
+
+  @ApiPropertyOptional({ description: 'Total record count alias' })
+  totalRecords?: number;
+
+  @ApiPropertyOptional({ description: 'Valid record count alias' })
+  validRecords?: number;
+
+  @ApiPropertyOptional({ description: 'Invalid record count alias' })
+  invalidRecords?: number;
+
+  @ApiPropertyOptional({ description: 'Duplicate record count alias' })
+  duplicateRecords?: number;
 }
 
 export class ImportDto {
@@ -47,6 +71,18 @@ export class ImportDto {
 
   @ApiProperty({ description: 'Number of rows flagged as duplicates' })
   duplicateCount!: number;
+
+  @ApiPropertyOptional({ description: 'Total record count alias' })
+  totalRecords?: number;
+
+  @ApiPropertyOptional({ description: 'Valid record count alias' })
+  validRecords?: number;
+
+  @ApiPropertyOptional({ description: 'Invalid record count alias' })
+  invalidRecords?: number;
+
+  @ApiPropertyOptional({ description: 'Duplicate record count alias' })
+  duplicateRecords?: number;
 
   @ApiPropertyOptional({ description: 'Summary of error categories and counts' })
   errorSummary?: Record<string, unknown> | null;
