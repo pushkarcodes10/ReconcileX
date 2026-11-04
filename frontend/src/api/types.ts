@@ -199,7 +199,7 @@ export interface MatchRecord {
   classification: MatchClassification;
   status: MatchStatus;
   score: number;
-  reasons: string[];
+  reasons: string[] | Record<string, unknown>;
   rejectionReason?: string;
   transactionA: Transaction;
   transactionB: Transaction;

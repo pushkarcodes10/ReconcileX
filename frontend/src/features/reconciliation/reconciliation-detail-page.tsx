@@ -8,6 +8,7 @@ import { StatusBadge } from '../../shared/components/status-badge';
 import { Pagination } from '../../shared/components/pagination';
 import { formatAmountMinor } from '../../shared/lib/amount';
 import { formatDate, formatDateTime } from '../../shared/lib/date';
+import { formatReasons } from '../../shared/lib/format-reasons';
 import { ApiError } from '../../api/errors';
 import {
   ArrowLeftIcon,
@@ -327,7 +328,7 @@ export const ReconciliationDetailPage: React.FC = () => {
                         </div>
                       </td>
                       <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
-                        {m.reasons?.join(', ') || 'Exact reference and amount parity'}
+                        {formatReasons(m.reasons) || 'Exact reference and amount parity'}
                       </td>
                     </tr>
                   ))}
@@ -403,7 +404,7 @@ export const ReconciliationDetailPage: React.FC = () => {
                         </div>
                       </td>
                       <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
-                        {m.reasons?.join(', ') || '—'}
+                        {formatReasons(m.reasons) || '—'}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         {m.status === 'PENDING' && permissions.canConfirmRejectMatches ? (

@@ -8,6 +8,7 @@ import { LoadingState, ErrorState, EmptyState } from '../../shared/components/pa
 import { StatusBadge } from '../../shared/components/status-badge';
 import { Pagination } from '../../shared/components/pagination';
 import { formatDateTime } from '../../shared/lib/date';
+import { formatReasons } from '../../shared/lib/format-reasons';
 import { ImportStatus } from '../../api/types';
 import {
   FileSpreadsheetIcon,
@@ -324,7 +325,7 @@ export const ImportsPage: React.FC = () => {
                       <td><StatusBadge status={dup.status} /></td>
                       <td style={{ fontWeight: 700 }}>{dup.confidenceScore ?? '—'}%</td>
                       <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
-                        {dup.reasons?.join(', ') || '—'}
+                        {formatReasons((dup as any).reasons || (dup as any).reason) || '—'}
                       </td>
                       <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
                         {formatDateTime(dup.createdAt)}

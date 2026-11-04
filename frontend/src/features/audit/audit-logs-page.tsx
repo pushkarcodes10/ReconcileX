@@ -187,12 +187,16 @@ export const AuditLogsPage: React.FC = () => {
                     </code>
                   </td>
                   <td>
-                    <code className="rx-col-code">{log.entityId.slice(0, 8)}...</code>
+                    <code className="rx-col-code">{log.entityId ? `${log.entityId.slice(0, 8)}...` : '—'}</code>
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem' }}>
                       <UserIcon size={13} style={{ color: 'var(--rx-text-muted)' }} />
-                      <span>{log.actor?.name || log.actor?.email || log.actorId.slice(0, 8)}</span>
+                      <span>
+                        {log.actor?.name ||
+                          log.actor?.email ||
+                          (log.actorId ? `${log.actorId.slice(0, 8)}...` : log.actorType || 'SYSTEM')}
+                      </span>
                     </div>
                   </td>
                   <td style={{ textAlign: 'right' }}>

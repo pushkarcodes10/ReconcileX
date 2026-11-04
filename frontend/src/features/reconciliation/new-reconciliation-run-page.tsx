@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reconciliationApi, CreateReconciliationRunDto } from '../../api/endpoints/reconciliation';
 import { dataSourcesApi } from '../../api/endpoints/data-sources';
+import { importsApi } from '../../api/endpoints/imports';
 import { ApiError } from '../../api/errors';
 import { generateIdempotencyKey } from '../../shared/lib/idempotency';
 import {
@@ -38,6 +39,22 @@ export const NewReconciliationRunPage: React.FC = () => {
     queryFn: () => dataSourcesApi.list(orgId!, { page: 1, limit: 100 }),
     enabled: !!orgId,
   });
+
+  // Fetch imports history to display record counts per source
+  const { data: importsData } = useQuery({
+    queryKey: ['imports', orgId],
+    queryFn: () => importsApi.listImports(orgId!, { limit: 100 }),
+    enabled: !!orgId,
+  });
+
+  const getSourceStats = (sourceId: string) => {
+    const list = importsData?.items.filter((i) => i.dataSourceId === sourceId) || [];
+    const count = list.reduce(
+      (sum, imp) => sum + (imp.validRecords ?? imp.validCount ?? imp.totalRecords ?? imp.rowCount ?? 0),
+      0
+    );
+    return { count, importsCount: list.length };
+  };
 
   const createRunMutation = useMutation({
     mutationFn: (dto: CreateReconciliationRunDto) =>
@@ -202,12 +219,22 @@ export const NewReconciliationRunPage: React.FC = () => {
                 className="rx-select"
               >
                 <option value="">-- Select Source A --</option>
-                {sources?.items.map((ds) => (
-                  <option key={ds.id} value={ds.id}>
-                    {ds.name} ({ds.type})
-                  </option>
-                ))}
+                {sources?.items.map((ds) => {
+                  const stats = getSourceStats(ds.id);
+                  const countLabel = stats.count > 0 ? `${stats.count.toLocaleString()} records` : '0 records';
+                  return (
+                    <option key={ds.id} value={ds.id}>
+                      {ds.name} ({ds.type} • {countLabel})
+                    </option>
+                  );
+                })}
               </select>
+              {sourceA && getSourceStats(sourceA).count === 0 && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--rx-warning)', marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <AlertCircleIcon size={14} />
+                  Selected data source has 0 imported records.
+                </div>
+              )}
             </div>
 
             <div>
@@ -223,21 +250,68 @@ export const NewReconciliationRunPage: React.FC = () => {
                 className="rx-select"
               >
                 <option value="">-- Select Source B --</option>
-                {sources?.items.map((ds) => (
-                  <option key={ds.id} value={ds.id}>
-                    {ds.name} ({ds.type})
-                  </option>
-                ))}
+                {sources?.items.map((ds) => {
+                  const stats = getSourceStats(ds.id);
+                  const countLabel = stats.count > 0 ? `${stats.count.toLocaleString()} records` : '0 records';
+                  return (
+                    <option key={ds.id} value={ds.id}>
+                      {ds.name} ({ds.type} • {countLabel})
+                    </option>
+                  );
+                })}
               </select>
+              {sourceB && getSourceStats(sourceB).count === 0 && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--rx-warning)', marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <AlertCircleIcon size={14} />
+                  Selected data source has 0 imported records.
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Step 2: Date Window */}
         <div style={{ borderTop: '1px solid var(--rx-border-subtle)', paddingTop: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-            <CalendarIcon size={16} style={{ color: 'var(--rx-text-primary)' }} />
-            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>2. Reconciliation Date Window</h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <CalendarIcon size={16} style={{ color: 'var(--rx-text-primary)' }} />
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>2. Reconciliation Date Window</h3>
+            </div>
+            {/* Quick date range presets */}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="rx-btn rx-btn-secondary rx-btn-sm"
+                onClick={() => {
+                  setDateFrom('2026-08-01');
+                  setDateTo('2026-10-31');
+                }}
+              >
+                Aug – Oct 2026 (Dataset)
+              </button>
+              <button
+                type="button"
+                className="rx-btn rx-btn-secondary rx-btn-sm"
+                onClick={() => {
+                  setDateFrom('2026-01-01');
+                  setDateTo('2026-12-31');
+                }}
+              >
+                Full Year 2026
+              </button>
+              <button
+                type="button"
+                className="rx-btn rx-btn-secondary rx-btn-sm"
+                onClick={() => {
+                  const today = new Date().toISOString().split('T')[0];
+                  const d90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                  setDateFrom(d90);
+                  setDateTo(today);
+                }}
+              >
+                Last 90 Days
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
