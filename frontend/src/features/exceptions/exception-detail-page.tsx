@@ -182,6 +182,55 @@ export const ExceptionDetailPage: React.FC = () => {
       <div className="rx-investigation-layout">
         {/* Left Column: Investigation Details, Transaction Data, Comments */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Discrepancy Breakdown Card (Native 3-Source Reconciliation) */}
+          {ex.discrepancyDetails && ex.discrepancyDetails.length > 0 && (
+            <section
+              className="rx-card"
+              style={{
+                padding: '1.75rem',
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #FCA5A5',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                <AlertCircleIcon size={20} style={{ color: '#DC2626' }} />
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#991B1B' }}>
+                  Three-Source Reconciliation Discrepancy
+                </h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                {ex.discrepancyDetails.map((disc, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '0.85rem 1rem',
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: 'var(--rx-radius-md)',
+                      border: '1px solid #FECACA',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, color: '#991B1B', marginBottom: '0.25rem' }}>
+                      {disc.type.replace('_', ' ')} • Field: {disc.field}
+                    </div>
+                    <div style={{ color: 'var(--rx-text-secondary)', marginBottom: '0.4rem' }}>
+                      {disc.message || disc.description}
+                    </div>
+                    {disc.expected !== undefined && disc.actual !== undefined && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', fontSize: '0.8rem' }}>
+                        <div>Expected: <strong>{typeof disc.expected === 'number' ? formatAmountMinor(disc.expected, 'INR') : String(disc.expected)}</strong></div>
+                        <div>Actual: <strong style={{ color: '#DC2626' }}>{typeof disc.actual === 'number' ? formatAmountMinor(disc.actual, 'INR') : String(disc.actual)}</strong></div>
+                        {disc.difference !== undefined && (
+                          <div>Difference: <strong style={{ color: '#DC2626' }}>{typeof disc.difference === 'number' ? formatAmountMinor(disc.difference, 'INR') : String(disc.difference)}</strong></div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Flagged Transaction Information Card */}
           <section className="rx-card" style={{ padding: '1.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>

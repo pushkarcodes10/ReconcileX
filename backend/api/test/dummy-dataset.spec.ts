@@ -41,8 +41,9 @@ import { TransactionsController } from '../src/modules/transactions/transactions
 import { TransactionsService } from '../src/modules/transactions/transactions.service';
 
 const DUMMY_DATA_DIR = path.resolve('C:/Users/Pushkar Raj/Downloads/ReconcileX_Dummy_Test_Data');
+const hasDummyData = fs.existsSync(DUMMY_DATA_DIR);
 
-describe('Dummy Dataset End-to-End Import Pipeline', () => {
+describe.skipIf(!hasDummyData)('Dummy Dataset End-to-End Import Pipeline', () => {
   let app: INestApplication;
   let authRepo: InMemoryAuthRepository;
   let orgRepo: InMemoryOrganizationsRepository;

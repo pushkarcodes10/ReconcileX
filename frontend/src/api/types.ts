@@ -164,45 +164,101 @@ export interface Transaction {
 
 export type ReconciliationRunStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
+export type ReconciliationType = 'TWO_SOURCE' | 'THREE_SOURCE';
+
 export interface ReconciliationRunConfig {
   dateWindowDays?: number;
+  dateToleranceDays?: number;
   potentialThreshold?: number;
   exactThreshold?: number;
+  reconciliationType?: ReconciliationType;
+  sourceAId?: string;
+  sourceBId?: string;
+  sourceCId?: string;
+  sourceAName?: string;
+  sourceBName?: string;
+  sourceCName?: string;
+  [key: string]: any;
 }
 
 export interface ReconciliationRun {
   id: string;
   organizationId: string;
+  reconciliationType?: ReconciliationType;
   sourceA: string;
   sourceB: string;
+  sourceC?: string | null;
+  sourceCId?: string | null;
   dateFrom: string;
   dateTo: string;
   status: ReconciliationRunStatus;
   config?: ReconciliationRunConfig;
   totalTransactionsA: number;
   totalTransactionsB: number;
+  totalTransactionsC?: number;
+  totalSourceA?: number;
+  totalSourceB?: number;
+  totalSourceC?: number;
   exactMatchesCount: number;
   potentialMatchesCount: number;
   unmatchedCount: number;
+  fullyMatchedCount?: number;
+  partiallyMatchedCount?: number;
+  discrepancyCount?: number;
+  exactMatchCount?: number;
+  potentialMatchCount?: number;
   createdAt: string;
   updatedAt?: string;
   sourceAName?: string;
   sourceBName?: string;
+  sourceCName?: string | null;
 }
 
-export type MatchClassification = 'EXACT' | 'POTENTIAL';
+export type MatchClassification =
+  | 'EXACT'
+  | 'POTENTIAL'
+  | 'FULLY_MATCHED'
+  | 'PARTIALLY_MATCHED'
+  | 'AMOUNT_MISMATCH'
+  | 'DATE_MISMATCH'
+  | 'REFERENCE_MISMATCH'
+  | 'POTENTIAL_MATCH'
+  | 'UNMATCHED'
+  | 'DUPLICATE_QUARANTINED';
+
 export type MatchStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED';
+
+export interface DiscrepancyDetail {
+  type:
+    | 'AMOUNT'
+    | 'DATE'
+    | 'REFERENCE'
+    | 'MISSING_SOURCE'
+    | 'AMOUNT_MISMATCH'
+    | 'DATE_MISMATCH'
+    | 'REFERENCE_MISMATCH';
+  field: string;
+  expected?: any;
+  actual?: any;
+  difference?: any;
+  message?: string;
+  description?: string;
+  missingSource?: 'SOURCE_A' | 'SOURCE_B' | 'SOURCE_C';
+}
 
 export interface MatchRecord {
   id: string;
   runId: string;
+  reconciliationType?: ReconciliationType;
   classification: MatchClassification;
   status: MatchStatus;
   score: number;
   reasons: string[] | Record<string, unknown>;
   rejectionReason?: string;
-  transactionA: Transaction;
-  transactionB: Transaction;
+  discrepancyDetails?: DiscrepancyDetail[] | null;
+  transactionA?: Transaction | null;
+  transactionB?: Transaction | null;
+  transactionC?: Transaction | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -232,6 +288,9 @@ export interface ExceptionRecord {
   organizationId: string;
   runId: string;
   transactionId: string;
+  matchId?: string | null;
+  exceptionType?: string | null;
+  discrepancyDetails?: DiscrepancyDetail[] | null;
   status: ExceptionStatus;
   assigneeId?: string;
   assigneeName?: string;

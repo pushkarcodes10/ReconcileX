@@ -12,12 +12,15 @@ import { normalizePagination } from '../pagination';
 import { generateIdempotencyKey } from '../../shared/lib/idempotency';
 
 export interface CreateReconciliationRunDto {
+  reconciliationType?: 'TWO_SOURCE' | 'THREE_SOURCE';
   sourceA: string;
   sourceB: string;
+  sourceC?: string;
   dateFrom: string;
   dateTo: string;
   config?: {
     dateWindowDays?: number;
+    dateToleranceDays?: number;
     potentialThreshold?: number;
     exactThreshold?: number;
   };

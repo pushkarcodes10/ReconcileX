@@ -10,6 +10,7 @@ import {
   asc,
   count,
   DatabaseClient,
+  DataSource,
   dataSources,
   desc,
   eq,
@@ -95,6 +96,15 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
       .from(dataSources)
       .where(and(eq(dataSources.organizationId, orgId), eq(dataSources.id, run.sourceBId)));
 
+    let sourceC: DataSource | null = null;
+    if (run.sourceCId) {
+      const [sc] = await this.db
+        .select()
+        .from(dataSources)
+        .where(and(eq(dataSources.organizationId, orgId), eq(dataSources.id, run.sourceCId)));
+      sourceC = sc || null;
+    }
+
     return {
       ...run,
       sourceA: sourceA || {
@@ -131,6 +141,23 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
         updatedAt: new Date(),
         deletedAt: null,
       },
+      sourceC: sourceC || (run.sourceCId ? {
+        id: run.sourceCId,
+        organizationId: orgId,
+        name: `Source C`,
+        type: 'OTHER',
+        direction: 'INCOMING',
+        columnMapping: {
+          external_id: 'external_id',
+          amount: 'amount',
+          date: 'date',
+          currency: 'currency',
+        },
+        status: 'ACTIVE',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      } : null),
     };
   }
 
@@ -152,8 +179,9 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
     orgId: string,
     sourceAId: string,
     sourceBId: string,
+    sourceCId?: string,
   ): Promise<ReconciliationRun | null> {
-    const [record] = await this.db
+    const activeRuns = await this.db
       .select()
       .from(reconciliationRuns)
       .where(
@@ -163,20 +191,20 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
             eq(reconciliationRuns.status, 'PENDING'),
             eq(reconciliationRuns.status, 'PROCESSING'),
           ),
-          or(
-            and(
-              eq(reconciliationRuns.sourceAId, sourceAId),
-              eq(reconciliationRuns.sourceBId, sourceBId),
-            ),
-            and(
-              eq(reconciliationRuns.sourceAId, sourceBId),
-              eq(reconciliationRuns.sourceBId, sourceAId),
-            ),
-          ),
         ),
       );
 
-    return record || null;
+    const targetSources = new Set([sourceAId, sourceBId, ...(sourceCId ? [sourceCId] : [])]);
+
+    for (const r of activeRuns) {
+      const runSources = new Set([r.sourceAId, r.sourceBId, ...(r.sourceCId ? [r.sourceCId] : [])]);
+      // If same exact sources participating in active run
+      if (runSources.size === targetSources.size && [...targetSources].every((s) => runSources.has(s))) {
+        return r;
+      }
+    }
+
+    return null;
   }
 
   async getNextDisplayId(orgId: string, dateStr: string): Promise<string> {
@@ -310,44 +338,38 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
     const withTxns: MatchWithTransactions[] = [];
 
     for (const m of pageMatches) {
-      const [txnA] = await this.db
-        .select()
-        .from(transactions)
-        .where(
-          and(eq(transactions.organizationId, orgId), eq(transactions.id, m.transactionAId)),
-        );
+      let txnA: Transaction | null = null;
+      if (m.transactionAId) {
+        const [ta] = await this.db
+          .select()
+          .from(transactions)
+          .where(and(eq(transactions.organizationId, orgId), eq(transactions.id, m.transactionAId)));
+        txnA = ta || null;
+      }
 
-      const [txnB] = await this.db
-        .select()
-        .from(transactions)
-        .where(
-          and(eq(transactions.organizationId, orgId), eq(transactions.id, m.transactionBId)),
-        );
+      let txnB: Transaction | null = null;
+      if (m.transactionBId) {
+        const [tb] = await this.db
+          .select()
+          .from(transactions)
+          .where(and(eq(transactions.organizationId, orgId), eq(transactions.id, m.transactionBId)));
+        txnB = tb || null;
+      }
 
-      const defaultTxn = (id: string): Transaction => ({
-        id,
-        organizationId: orgId,
-        dataSourceId: id,
-        importId: null,
-        externalId: `EXT-${id.slice(0, 8)}`,
-        amountMinor: 1000,
-        currency: 'USD',
-        transactionDate: new Date(),
-        reference: null,
-        externalTxnId: null,
-        merchantOrOrderId: null,
-        txnType: null,
-        status: m.status === 'CONFIRMED' ? 'MATCHED' : 'POTENTIAL_MATCH',
-        normalizedPayload: null,
-        fingerprint: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+      let txnC: Transaction | null = null;
+      if (m.transactionCId) {
+        const [tc] = await this.db
+          .select()
+          .from(transactions)
+          .where(and(eq(transactions.organizationId, orgId), eq(transactions.id, m.transactionCId)));
+        txnC = tc || null;
+      }
 
       withTxns.push({
         ...m,
-        transactionA: txnA || defaultTxn(m.transactionAId),
-        transactionB: txnB || defaultTxn(m.transactionBId),
+        transactionA: txnA,
+        transactionB: txnB,
+        transactionC: txnC,
       });
     }
 
@@ -362,44 +384,44 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
 
     if (!record) return null;
 
-    const [txnA] = await this.db
-      .select()
-      .from(transactions)
-      .where(
-        and(eq(transactions.organizationId, orgId), eq(transactions.id, record.transactionAId)),
-      );
+    let txnA: Transaction | null = null;
+    if (record.transactionAId) {
+      const [ta] = await this.db
+        .select()
+        .from(transactions)
+        .where(
+          and(eq(transactions.organizationId, orgId), eq(transactions.id, record.transactionAId)),
+        );
+      txnA = ta || null;
+    }
 
-    const [txnB] = await this.db
-      .select()
-      .from(transactions)
-      .where(
-        and(eq(transactions.organizationId, orgId), eq(transactions.id, record.transactionBId)),
-      );
+    let txnB: Transaction | null = null;
+    if (record.transactionBId) {
+      const [tb] = await this.db
+        .select()
+        .from(transactions)
+        .where(
+          and(eq(transactions.organizationId, orgId), eq(transactions.id, record.transactionBId)),
+        );
+      txnB = tb || null;
+    }
 
-    const defaultTxn = (id: string): Transaction => ({
-      id,
-      organizationId: orgId,
-      dataSourceId: id,
-      importId: null,
-      externalId: `EXT-${id.slice(0, 8)}`,
-      amountMinor: 1000,
-      currency: 'USD',
-      transactionDate: new Date(),
-      reference: null,
-      externalTxnId: null,
-      merchantOrOrderId: null,
-      txnType: null,
-      status: record.status === 'CONFIRMED' ? 'MATCHED' : 'POTENTIAL_MATCH',
-      normalizedPayload: null,
-      fingerprint: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    let txnC: Transaction | null = null;
+    if (record.transactionCId) {
+      const [tc] = await this.db
+        .select()
+        .from(transactions)
+        .where(
+          and(eq(transactions.organizationId, orgId), eq(transactions.id, record.transactionCId)),
+        );
+      txnC = tc || null;
+    }
 
     return {
       ...record,
-      transactionA: txnA || defaultTxn(record.transactionAId),
-      transactionB: txnB || defaultTxn(record.transactionBId),
+      transactionA: txnA,
+      transactionB: txnB,
+      transactionC: txnC,
     };
   }
 
@@ -423,7 +445,7 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
         });
       }
 
-      if (matchRecord.classification !== 'POTENTIAL') {
+      if (matchRecord.classification !== 'POTENTIAL' && matchRecord.classification !== 'POTENTIAL_MATCH') {
         throw new BadRequestException({
           code: 'INVALID_MATCH_STATE',
           message: 'Only POTENTIAL matches can be confirmed or rejected.',
@@ -444,33 +466,28 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
         });
       }
 
-      // 2. Lock and check both transactions
-      const [txnA] = await tx
+      // 2. Lock and check participating transactions
+      const txnIds = [
+        matchRecord.transactionAId,
+        matchRecord.transactionBId,
+        matchRecord.transactionCId,
+      ].filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+      const lockedTxns = await tx
         .select()
         .from(transactions)
         .where(
           and(
             eq(transactions.organizationId, orgId),
-            eq(transactions.id, matchRecord.transactionAId),
+            inArray(transactions.id, txnIds),
           ),
         )
         .for('update');
 
-      const [txnB] = await tx
-        .select()
-        .from(transactions)
-        .where(
-          and(
-            eq(transactions.organizationId, orgId),
-            eq(transactions.id, matchRecord.transactionBId),
-          ),
-        )
-        .for('update');
-
-      if (txnA?.status === 'MATCHED' || txnB?.status === 'MATCHED') {
+      if (lockedTxns.some((t) => t.status === 'MATCHED')) {
         throw new ConflictException({
           code: 'TRANSACTION_ALREADY_MATCHED',
-          message: 'One or both transactions in this match have already been matched.',
+          message: 'One or more transactions in this match have already been matched.',
         });
       }
 
@@ -495,24 +512,20 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
         .where(
           and(
             eq(transactions.organizationId, orgId),
-            inArray(transactions.id, [matchRecord.transactionAId, matchRecord.transactionBId]),
+            inArray(transactions.id, txnIds),
           ),
         );
 
-      const [updatedTxnA] = await tx
+      const updatedTxns = await tx
         .select()
         .from(transactions)
-        .where(eq(transactions.id, matchRecord.transactionAId));
-
-      const [updatedTxnB] = await tx
-        .select()
-        .from(transactions)
-        .where(eq(transactions.id, matchRecord.transactionBId));
+        .where(inArray(transactions.id, txnIds));
 
       return {
         ...updatedMatch,
-        transactionA: updatedTxnA,
-        transactionB: updatedTxnB,
+        transactionA: updatedTxns.find((t) => t.id === matchRecord.transactionAId) || null,
+        transactionB: updatedTxns.find((t) => t.id === matchRecord.transactionBId) || null,
+        transactionC: updatedTxns.find((t) => t.id === matchRecord.transactionCId) || null,
       };
     });
   }
@@ -538,7 +551,7 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
         });
       }
 
-      if (matchRecord.classification !== 'POTENTIAL') {
+      if (matchRecord.classification !== 'POTENTIAL' && matchRecord.classification !== 'POTENTIAL_MATCH') {
         throw new BadRequestException({
           code: 'INVALID_MATCH_STATE',
           message: 'Only POTENTIAL matches can be confirmed or rejected.',
@@ -581,8 +594,14 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
         .where(eq(matches.id, matchId))
         .returning();
 
-      // 3. Recalculate transaction statuses for A and B
-      for (const txnId of [matchRecord.transactionAId, matchRecord.transactionBId]) {
+      // 3. Recalculate transaction statuses for A, B, and C
+      const txnIds = [
+        matchRecord.transactionAId,
+        matchRecord.transactionBId,
+        matchRecord.transactionCId,
+      ].filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+      for (const txnId of txnIds) {
         const otherMatches = await tx
           .select({ status: matches.status })
           .from(matches)
@@ -590,7 +609,11 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
             and(
               eq(matches.organizationId, orgId),
               sql`${matches.id} != ${matchId}`,
-              or(eq(matches.transactionAId, txnId), eq(matches.transactionBId, txnId)),
+              or(
+                eq(matches.transactionAId, txnId),
+                eq(matches.transactionBId, txnId),
+                eq(matches.transactionCId, txnId),
+              ),
             ),
           );
 
@@ -610,20 +633,16 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
           .where(and(eq(transactions.organizationId, orgId), eq(transactions.id, txnId)));
       }
 
-      const [updatedTxnA] = await tx
+      const updatedTxns = await tx
         .select()
         .from(transactions)
-        .where(eq(transactions.id, matchRecord.transactionAId));
-
-      const [updatedTxnB] = await tx
-        .select()
-        .from(transactions)
-        .where(eq(transactions.id, matchRecord.transactionBId));
+        .where(inArray(transactions.id, txnIds));
 
       return {
         ...updatedMatch,
-        transactionA: updatedTxnA,
-        transactionB: updatedTxnB,
+        transactionA: updatedTxns.find((t) => t.id === matchRecord.transactionAId) || null,
+        transactionB: updatedTxns.find((t) => t.id === matchRecord.transactionBId) || null,
+        transactionC: updatedTxns.find((t) => t.id === matchRecord.transactionCId) || null,
       };
     });
   }
@@ -679,22 +698,28 @@ export class DrizzleReconciliationRepository implements IReconciliationRepositor
     );
 
     const matchTxns = await this.db
-      .select({ txnA: matches.transactionAId, txnB: matches.transactionBId })
+      .select({ txnA: matches.transactionAId, txnB: matches.transactionBId, txnC: matches.transactionCId })
       .from(matches)
       .where(eq(matches.runId, run.id));
 
     const matchedIds = new Set<string>();
     for (const m of matchTxns) {
-      matchedIds.add(m.txnA);
-      matchedIds.add(m.txnB);
+      if (m.txnA) matchedIds.add(m.txnA);
+      if (m.txnB) matchedIds.add(m.txnB);
+      if (m.txnC) matchedIds.add(m.txnC);
+    }
+
+    const sourceConditions = [
+      eq(transactions.dataSourceId, run.sourceAId),
+      eq(transactions.dataSourceId, run.sourceBId),
+    ];
+    if (run.sourceCId) {
+      sourceConditions.push(eq(transactions.dataSourceId, run.sourceCId));
     }
 
     const conditions: SQL[] = [
       eq(transactions.organizationId, orgId),
-      or(
-        eq(transactions.dataSourceId, run.sourceAId),
-        eq(transactions.dataSourceId, run.sourceBId),
-      )!,
+      or(...sourceConditions)!,
       gte(transactions.transactionDate, fromDate),
       lte(transactions.transactionDate, toDate),
     ];

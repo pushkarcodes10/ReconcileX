@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -8,6 +9,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { matches } from './matches';
 import { organizations } from './organizations';
 import { reconciliationRuns } from './reconciliation-runs';
 import { transactions } from './transactions';
@@ -43,9 +45,12 @@ export const exceptions = pgTable(
     runId: uuid('run_id')
       .notNull()
       .references(() => reconciliationRuns.id, { onDelete: 'cascade' }),
+    matchId: uuid('match_id').references(() => matches.id, { onDelete: 'cascade' }),
     transactionId: uuid('transaction_id').references(() => transactions.id, {
       onDelete: 'cascade',
     }),
+    exceptionType: varchar('exception_type', { length: 50 }).default('UNMATCHED').notNull(),
+    discrepancyDetails: jsonb('discrepancy_details').$type<Record<string, unknown> | Array<unknown>>(),
     status: varchar('status', { length: 50 }).default('OPEN').notNull(),
     assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
     resolutionReason: text('resolution_reason'),
@@ -58,6 +63,7 @@ export const exceptions = pgTable(
   (table) => [
     index('exceptions_org_status_idx').on(table.organizationId, table.status),
     index('exceptions_org_run_idx').on(table.organizationId, table.runId),
+    index('exceptions_org_match_idx').on(table.organizationId, table.matchId),
     index('exceptions_org_assignee_idx').on(table.organizationId, table.assigneeId),
     index('exceptions_org_created_idx').on(table.organizationId, table.createdAt),
     index('exceptions_run_txn_idx').on(table.runId, table.transactionId),

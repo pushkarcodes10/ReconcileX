@@ -12,6 +12,7 @@ import {
   GitCompareIcon,
   PlusIcon,
   ArrowRightIcon,
+  LayersIcon,
 } from '../../shared/components/icons';
 
 export const ReconciliationPage: React.FC = () => {
@@ -34,11 +35,22 @@ export const ReconciliationPage: React.FC = () => {
 
   if (!orgId) return null;
 
-  // Compute aggregate statistics for the loaded runs (Reference 2 Bento Summary)
+  // Compute aggregate statistics for the loaded runs
   const totalRuns = data?.total ?? 0;
-  const exactTotal = data?.items?.reduce((acc, r) => acc + (r.exactMatchesCount ?? 0), 0) ?? 0;
-  const potentialTotal = data?.items?.reduce((acc, r) => acc + (r.potentialMatchesCount ?? 0), 0) ?? 0;
-  const unmatchedTotal = data?.items?.reduce((acc, r) => acc + (r.unmatchedCount ?? 0), 0) ?? 0;
+  const exactTotal =
+    data?.items?.reduce(
+      (acc, r) => acc + (r.fullyMatchedCount ?? r.exactMatchesCount ?? r.exactMatchCount ?? 0),
+      0
+    ) ?? 0;
+  const potentialTotal =
+    data?.items?.reduce(
+      (acc, r) => acc + (r.potentialMatchesCount ?? r.potentialMatchCount ?? 0),
+      0
+    ) ?? 0;
+  const discrepancyTotal =
+    data?.items?.reduce((acc, r) => acc + (r.discrepancyCount ?? 0), 0) ?? 0;
+  const unmatchedTotal =
+    data?.items?.reduce((acc, r) => acc + (r.unmatchedCount ?? 0), 0) ?? 0;
 
   const statusFilters: { label: string; value: ReconciliationRunStatus | '' }[] = [
     { label: 'All Statuses', value: '' },
@@ -57,7 +69,7 @@ export const ReconciliationPage: React.FC = () => {
             Reconciliation Runs
           </h1>
           <p style={{ margin: '0.25rem 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.9rem' }}>
-            Pairwise reconciliation history, exact and potential matching results.
+            Native multi-source reconciliation history, transitive matching, and discrepancy investigation.
           </p>
         </div>
         {permissions.canRunReconciliation && (
@@ -67,34 +79,40 @@ export const ReconciliationPage: React.FC = () => {
         )}
       </div>
 
-      {/* Overview Statistics Cards (Reference 2 Bento) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+      {/* Overview Statistics Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
         <div className="rx-bento-card rx-bento-dark" style={{ padding: '1.25rem' }}>
           <div className="rx-bento-label" style={{ color: '#D4D8CF' }}>Total Runs Executed</div>
           <div className="rx-bento-val" style={{ color: 'var(--rx-lime)' }}>{totalRuns}</div>
-          <div style={{ fontSize: '0.75rem', color: '#A3A8A0' }}>Historical pairwise jobs</div>
+          <div style={{ fontSize: '0.75rem', color: '#A3A8A0' }}>Unified & pairwise jobs</div>
         </div>
 
         <div className="rx-bento-card rx-bento-sage" style={{ padding: '1.25rem' }}>
-          <div className="rx-bento-label" style={{ color: '#1A2917' }}>Exact Match Volume</div>
+          <div className="rx-bento-label" style={{ color: '#1A2917' }}>Fully Matched Volume</div>
           <div className="rx-bento-val" style={{ color: '#0F290D' }}>{exactTotal}</div>
-          <div style={{ fontSize: '0.75rem', color: '#2B4228' }}>100% confidence verified</div>
+          <div style={{ fontSize: '0.75rem', color: '#2B4228' }}>Cross-source verified</div>
         </div>
 
         <div className="rx-bento-card rx-bento-yellow" style={{ padding: '1.25rem' }}>
           <div className="rx-bento-label" style={{ color: '#383204' }}>Potential Matches</div>
           <div className="rx-bento-val" style={{ color: '#383204' }}>{potentialTotal}</div>
-          <div style={{ fontSize: '0.75rem', color: '#595009' }}>Requires operator confirmation</div>
+          <div style={{ fontSize: '0.75rem', color: '#595009' }}>Requires operator review</div>
+        </div>
+
+        <div className="rx-bento-card rx-bento-rose" style={{ padding: '1.25rem' }}>
+          <div className="rx-bento-label" style={{ color: '#7F1D1D' }}>Discrepancies</div>
+          <div className="rx-bento-val" style={{ color: '#991B1B' }}>{discrepancyTotal}</div>
+          <div style={{ fontSize: '0.75rem', color: '#991B1B' }}>Amount/Date/Missing exceptions</div>
         </div>
 
         <div className="rx-bento-card rx-bento-white" style={{ padding: '1.25rem' }}>
-          <div className="rx-bento-label" style={{ color: 'var(--rx-danger)' }}>Unmatched Exceptions</div>
+          <div className="rx-bento-label" style={{ color: 'var(--rx-danger)' }}>Unmatched Records</div>
           <div className="rx-bento-val" style={{ color: 'var(--rx-danger)' }}>{unmatchedTotal}</div>
           <div style={{ fontSize: '0.75rem', color: 'var(--rx-text-secondary)' }}>Queued in exceptions workflow</div>
         </div>
       </div>
 
-      {/* Filter Toolbar (Reference 4) */}
+      {/* Filter Toolbar */}
       <div className="rx-card" style={{ padding: '1rem 1.25rem', backgroundColor: '#FFFFFF' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--rx-text-secondary)', marginRight: '0.5rem' }}>
@@ -115,7 +133,7 @@ export const ReconciliationPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Runs History Table (Reference 4) */}
+      {/* Runs History Table */}
       {isLoading ? (
         <LoadingState message="Loading reconciliation runs..." />
       ) : error ? (
@@ -123,7 +141,7 @@ export const ReconciliationPage: React.FC = () => {
       ) : !data || data.items.length === 0 ? (
         <EmptyState
           title="No Reconciliation Runs Found"
-          description="Initiate a pairwise reconciliation run to compare two sources."
+          description="Initiate a multi-source reconciliation run to evaluate transactions."
           icon={<GitCompareIcon size={24} />}
           action={
             permissions.canRunReconciliation ? (
@@ -139,56 +157,119 @@ export const ReconciliationPage: React.FC = () => {
             <thead>
               <tr>
                 <th>Run ID</th>
+                <th>Mode</th>
                 <th>Status</th>
-                <th>Reconciliation Window</th>
-                <th>Exact Matches</th>
+                <th>Participating Sources</th>
+                <th>Date Window</th>
+                <th>Full Matches</th>
                 <th>Potential</th>
+                <th>Discrepancies</th>
                 <th>Unmatched</th>
                 <th>Initiated At</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {data.items.map((run) => (
-                <tr key={run.id}>
-                  <td>
-                    <code className="rx-col-code">{run.id.slice(0, 8)}...</code>
-                  </td>
-                  <td>
-                    <StatusBadge status={run.status} />
-                  </td>
-                  <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
-                    {formatDate(run.dateFrom)} to {formatDate(run.dateTo)}
-                  </td>
-                  <td>
-                    <span style={{ color: 'var(--rx-success)', fontWeight: 700 }}>
-                      {run.exactMatchesCount}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ color: 'var(--rx-warning)', fontWeight: 700 }}>
-                      {run.potentialMatchesCount}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ color: 'var(--rx-danger)', fontWeight: 700 }}>
-                      {run.unmatchedCount}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
-                    {formatDateTime(run.createdAt)}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Link
-                      to={`/orgs/${orgId}/reconciliation/${run.id}`}
-                      className="rx-btn rx-btn-secondary rx-btn-sm"
-                      style={{ display: 'inline-flex' }}
-                    >
-                      View Details <ArrowRightIcon size={13} />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {data.items.map((run) => {
+                const is3Way = run.reconciliationType === 'THREE_SOURCE' || !!run.sourceCId || !!run.sourceC;
+                return (
+                  <tr key={run.id}>
+                    <td>
+                      <code className="rx-col-code">{run.id.slice(0, 8)}...</code>
+                    </td>
+                    <td>
+                      {is3Way ? (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '999px',
+                            backgroundColor: '#EAF7EE',
+                            color: '#166534',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <LayersIcon size={12} /> 3-Way
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'var(--rx-surface-muted)',
+                            color: 'var(--rx-text-secondary)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Pairwise
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <StatusBadge status={run.status} />
+                    </td>
+                    <td style={{ fontSize: '0.8125rem' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--rx-text-primary)' }}>
+                        {run.sourceAName || 'Source A'} vs {run.sourceBName || 'Source B'}
+                      </div>
+                      {is3Way && (
+                        <div style={{ color: 'var(--rx-text-secondary)', fontSize: '0.75rem', marginTop: '0.1rem' }}>
+                          vs {run.sourceCName || 'Source C (Bank)'}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
+                      {formatDate(run.dateFrom)} to {formatDate(run.dateTo)}
+                    </td>
+                    <td>
+                      <span style={{ color: 'var(--rx-success)', fontWeight: 700 }}>
+                        {run.fullyMatchedCount ?? run.exactMatchesCount ?? run.exactMatchCount ?? 0}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ color: 'var(--rx-warning)', fontWeight: 700 }}>
+                        {run.potentialMatchesCount ?? run.potentialMatchCount ?? 0}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          color: (run.discrepancyCount ?? 0) > 0 ? 'var(--rx-danger)' : 'var(--rx-text-muted)',
+                          fontWeight: (run.discrepancyCount ?? 0) > 0 ? 700 : 500,
+                        }}
+                      >
+                        {run.discrepancyCount ?? 0}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ color: 'var(--rx-danger)', fontWeight: 700 }}>
+                        {run.unmatchedCount ?? 0}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: '0.8125rem', color: 'var(--rx-text-secondary)' }}>
+                      {formatDateTime(run.createdAt)}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <Link
+                        to={`/orgs/${orgId}/reconciliation/${run.id}`}
+                        className="rx-btn rx-btn-secondary rx-btn-sm"
+                        style={{ display: 'inline-flex' }}
+                      >
+                        View Details <ArrowRightIcon size={13} />
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

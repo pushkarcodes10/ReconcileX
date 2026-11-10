@@ -22,6 +22,9 @@ export class ReconciliationRunItemDto {
   @ApiProperty({ description: 'Human-readable Run ID (e.g. RUN-20261103-001)' })
   displayId!: string;
 
+  @ApiProperty({ description: 'Reconciliation run type (TWO_SOURCE or THREE_SOURCE)' })
+  reconciliationType?: string;
+
   @ApiProperty({ description: 'Organization UUID' })
   organizationId!: string;
 
@@ -30,6 +33,9 @@ export class ReconciliationRunItemDto {
 
   @ApiProperty({ description: 'Source B UUID' })
   sourceBId!: string;
+
+  @ApiPropertyOptional({ description: 'Source C UUID' })
+  sourceCId?: string | null;
 
   @ApiProperty({ description: 'Run processing status', enum: ReconciliationRunStatus })
   status!: string;
@@ -49,11 +55,23 @@ export class ReconciliationRunItemDto {
   @ApiProperty({ description: 'Total eligible transactions loaded from Source B' })
   totalSourceB!: number;
 
+  @ApiPropertyOptional({ description: 'Total eligible transactions loaded from Source C' })
+  totalSourceC?: number;
+
   @ApiProperty({ description: 'Number of exact matches found' })
   exactMatchCount!: number;
 
   @ApiProperty({ description: 'Number of potential matches found' })
   potentialMatchCount!: number;
+
+  @ApiPropertyOptional({ description: 'Number of fully matched groups across 3 sources' })
+  fullyMatchedCount?: number;
+
+  @ApiPropertyOptional({ description: 'Number of partially matched groups across 3 sources' })
+  partiallyMatchedCount?: number;
+
+  @ApiPropertyOptional({ description: 'Number of discrepancy groups across 3 sources' })
+  discrepancyCount?: number;
 
   @ApiProperty({ description: 'Number of unmatched transactions' })
   unmatchedCount!: number;
@@ -74,6 +92,9 @@ export class ReconciliationRunDetailDto extends ReconciliationRunItemDto {
 
   @ApiProperty({ description: 'Summary details of Data Source B' })
   sourceB!: DataSourceSummaryDto;
+
+  @ApiPropertyOptional({ description: 'Summary details of Data Source C' })
+  sourceC?: DataSourceSummaryDto | null;
 }
 
 export class MatchedTransactionDetailDto {
@@ -121,11 +142,17 @@ export class MatchDetailDto {
   @ApiProperty({ description: 'Reconciliation Run UUID' })
   runId!: string;
 
-  @ApiProperty({ description: 'Transaction A UUID' })
-  transactionAId!: string;
+  @ApiPropertyOptional({ description: 'Reconciliation type (TWO_SOURCE or THREE_SOURCE)' })
+  reconciliationType?: string;
 
-  @ApiProperty({ description: 'Transaction B UUID' })
-  transactionBId!: string;
+  @ApiPropertyOptional({ description: 'Transaction A UUID' })
+  transactionAId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Transaction B UUID' })
+  transactionBId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Transaction C UUID' })
+  transactionCId?: string | null;
 
   @ApiProperty({ description: 'Match confidence classification', enum: MatchClassification })
   classification!: MatchClassification;
@@ -135,6 +162,9 @@ export class MatchDetailDto {
 
   @ApiProperty({ description: 'Explainable reason codes and scoring breakdown' })
   reasons!: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: 'Structured discrepancy breakdown across sources' })
+  discrepancyDetails?: Record<string, unknown> | Array<unknown> | null;
 
   @ApiProperty({ description: 'Match review status', enum: MatchStatus })
   status!: MatchStatus;
@@ -157,11 +187,14 @@ export class MatchDetailDto {
   @ApiProperty({ description: 'Match record update timestamp' })
   updatedAt!: Date;
 
-  @ApiProperty({ description: 'Details of Transaction A' })
-  transactionA!: MatchedTransactionDetailDto;
+  @ApiPropertyOptional({ description: 'Details of Transaction A' })
+  transactionA?: MatchedTransactionDetailDto | null;
 
-  @ApiProperty({ description: 'Details of Transaction B' })
-  transactionB!: MatchedTransactionDetailDto;
+  @ApiPropertyOptional({ description: 'Details of Transaction B' })
+  transactionB?: MatchedTransactionDetailDto | null;
+
+  @ApiPropertyOptional({ description: 'Details of Transaction C' })
+  transactionC?: MatchedTransactionDetailDto | null;
 }
 
 export class UnmatchedTransactionItemDto {

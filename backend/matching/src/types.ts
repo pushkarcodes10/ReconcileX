@@ -106,3 +106,79 @@ export interface MatchTwoSetsResult {
   unmatchedB: MatchTransaction[];
   statistics: MatchStatistics;
 }
+
+/**
+ * Three-source reconciliation classification statuses.
+ */
+export type ThreeSourceClassification =
+  | 'FULLY_MATCHED'
+  | 'PARTIALLY_MATCHED'
+  | 'AMOUNT_MISMATCH'
+  | 'DATE_MISMATCH'
+  | 'REFERENCE_MISMATCH'
+  | 'POTENTIAL_MATCH'
+  | 'UNMATCHED'
+  | 'DUPLICATE_QUARANTINED';
+
+export type SourceStatusType = 'MATCHED' | 'MISSING' | 'MISMATCH' | 'QUARANTINED';
+
+export interface DiscrepancyDetail {
+  type: 'AMOUNT' | 'DATE' | 'REFERENCE' | 'CURRENCY' | 'MISSING_SOURCE';
+  field: string;
+  expected?: any;
+  actual?: any;
+  difference?: any;
+  message: string;
+}
+
+export interface ThreeSourceMatchGroup {
+  id: string;
+  reconciliationType: 'THREE_SOURCE';
+  classification: ThreeSourceClassification;
+  score: number;
+  confidence: number;
+  reasons: string[];
+  explanation: string;
+  discrepancies: DiscrepancyDetail[];
+  transactionAId?: string | null;
+  transactionBId?: string | null;
+  transactionCId?: string | null;
+  transactionA?: MatchTransaction | null;
+  transactionB?: MatchTransaction | null;
+  transactionC?: MatchTransaction | null;
+  sourceStatus: {
+    sourceA: SourceStatusType;
+    sourceB: SourceStatusType;
+    sourceC: SourceStatusType;
+  };
+}
+
+export interface QuarantinedDuplicate {
+  source: 'A' | 'B' | 'C';
+  transaction: MatchTransaction;
+  reason: string;
+}
+
+export interface ThreeSourceStatistics {
+  totalA: number;
+  totalB: number;
+  totalC: number;
+  fullyMatchedCount: number;
+  partiallyMatchedCount: number;
+  amountMismatchCount: number;
+  dateMismatchCount: number;
+  referenceMismatchCount: number;
+  potentialMatchCount: number;
+  unmatchedCount: number;
+  quarantinedCount: number;
+  matchRate: number;
+}
+
+export interface MatchThreeSetsResult {
+  matchGroups: ThreeSourceMatchGroup[];
+  unmatchedA: MatchTransaction[];
+  unmatchedB: MatchTransaction[];
+  unmatchedC: MatchTransaction[];
+  quarantinedDuplicates: QuarantinedDuplicate[];
+  statistics: ThreeSourceStatistics;
+}

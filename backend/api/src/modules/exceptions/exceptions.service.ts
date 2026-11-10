@@ -84,6 +84,39 @@ export class ExceptionsService {
     return created;
   }
 
+  async createExceptionForDiscrepancy(
+    orgId: string,
+    runId: string,
+    matchId: string,
+    exceptionType: string,
+    discrepancyDetails?: any,
+    transactionId?: string | null,
+  ): Promise<Exception> {
+    const item: NewException = {
+      organizationId: orgId,
+      runId,
+      matchId,
+      transactionId: transactionId || null,
+      exceptionType,
+      discrepancyDetails: discrepancyDetails || null,
+      status: ExceptionStatus.OPEN,
+    };
+
+    const [created] = await this.exceptionsRepo.createMany([item]);
+
+    if (this.auditService && created) {
+      await this.auditService.logSystemAction(
+        orgId,
+        AuditAction.EXCEPTION_CREATED,
+        AuditEntityType.EXCEPTION,
+        created.id,
+        { runId, matchId, exceptionType, discrepancyDetails },
+      );
+    }
+
+    return created;
+  }
+
   async getExceptions(
     orgId: string,
     query: QueryExceptionsDto,

@@ -13,13 +13,15 @@ import { QueryUnmatchedDto } from '../dto/query-unmatched.dto';
 export const RECONCILIATION_REPOSITORY = 'RECONCILIATION_REPOSITORY';
 
 export interface MatchWithTransactions extends Match {
-  transactionA: Transaction;
-  transactionB: Transaction;
+  transactionA?: Transaction | null;
+  transactionB?: Transaction | null;
+  transactionC?: Transaction | null;
 }
 
 export interface ReconciliationRunWithSources extends ReconciliationRun {
   sourceA: DataSource;
   sourceB: DataSource;
+  sourceC?: DataSource | null;
 }
 
 export interface IReconciliationRepository {
@@ -32,6 +34,7 @@ export interface IReconciliationRepository {
     orgId: string,
     sourceAId: string,
     sourceBId: string,
+    sourceCId?: string,
   ): Promise<ReconciliationRun | null>;
   getNextDisplayId(orgId: string, dateStr: string): Promise<string>;
   findRuns(

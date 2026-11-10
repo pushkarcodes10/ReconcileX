@@ -24,6 +24,16 @@ export class ReconciliationMatchingConfigDto {
   dateWindowDays?: number;
 
   @ApiPropertyOptional({
+    description: 'Date tolerance in days across sources (alias for dateWindowDays in three-source)',
+    example: 3,
+    default: 2,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  dateToleranceDays?: number;
+
+  @ApiPropertyOptional({
     description: 'Score threshold for potential matches (0-100)',
     example: 60,
     default: 60,
@@ -47,6 +57,16 @@ export class ReconciliationMatchingConfigDto {
 }
 
 export class CreateReconciliationRunDto {
+  @ApiPropertyOptional({
+    description: 'Reconciliation run mode (TWO_SOURCE or THREE_SOURCE)',
+    example: 'THREE_SOURCE',
+    enum: ['TWO_SOURCE', 'THREE_SOURCE'],
+    default: 'TWO_SOURCE',
+  })
+  @IsOptional()
+  @IsString()
+  reconciliationType?: 'TWO_SOURCE' | 'THREE_SOURCE';
+
   @ApiProperty({
     description: 'UUID of the first data source (Source A)',
     example: 'd9b9a6b1-4f1b-4f9e-9d2a-1b2c3d4e5f6a',
@@ -62,6 +82,14 @@ export class CreateReconciliationRunDto {
   @IsUUID()
   @IsNotEmpty()
   sourceB!: string;
+
+  @ApiPropertyOptional({
+    description: 'UUID of the third data source (Source C) for three-source reconciliation',
+    example: 'a7b7c6d5-2e1f-4a3b-8c2d-9e8f7a6b5c4d',
+  })
+  @IsOptional()
+  @IsUUID()
+  sourceC?: string;
 
   @ApiProperty({
     description: 'Inclusive start date for eligible transactions (YYYY-MM-DD or ISO 8601)',

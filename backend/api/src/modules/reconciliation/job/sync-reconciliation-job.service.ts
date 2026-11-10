@@ -7,7 +7,7 @@ import {
   ReconciliationRun,
   Transaction,
 } from '@reconcilex/db';
-import { MatchTransaction, matchTwoSets, MatchingConfig } from '@reconcilex/matching';
+import { MatchTransaction, matchTwoSets, matchThreeSets, MatchingConfig } from '@reconcilex/matching';
 import { AuditService } from '../../audit/audit.service';
 import { ExceptionsService } from '../../exceptions/exceptions.service';
 import { JobsService } from '../../jobs/jobs.service';
@@ -82,6 +82,8 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
         rawDateTo.includes('T') ? rawDateTo : `${rawDateTo}T23:59:59.999Z`,
       );
 
+      const isThreeSource = run.reconciliationType === 'THREE_SOURCE' || !!run.sourceCId;
+
       // 3. Fetch eligible transactions (not already MATCHED)
       const txnsA = await this.transactionsRepo.findEligibleForReconciliation(
         organizationId,
@@ -96,6 +98,15 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
         dateFrom,
         dateTo,
       );
+
+      const txnsC = isThreeSource && run.sourceCId
+        ? await this.transactionsRepo.findEligibleForReconciliation(
+            organizationId,
+            run.sourceCId,
+            dateFrom,
+            dateTo,
+          )
+        : [];
 
       // 4. Map into MatchTransaction
       const mapToMatch = (t: Transaction): MatchTransaction => ({
@@ -112,71 +123,136 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
 
       const setA = txnsA.map(mapToMatch);
       const setB = txnsB.map(mapToMatch);
+      const setC = txnsC.map(mapToMatch);
 
-      // 5. Execute matching engine
       const matchConfig =
         options?.matchingConfig || (configObj.matchingConfig as MatchingConfig | undefined);
-      const matchResult = matchTwoSets(setA, setB, matchConfig);
 
-      // 6. Partition matches
+      const now = new Date();
       const newMatches: NewMatch[] = [];
       const exactTxnIds: string[] = [];
       const potentialTxnIds: string[] = [];
+      let unmatchedIds: string[] = [];
 
       let exactCount = 0;
       let potentialCount = 0;
+      let fullyMatchedCount = 0;
+      let partiallyMatchedCount = 0;
+      let discrepancyCount = 0;
 
-      const now = new Date();
+      if (isThreeSource) {
+        // Execute three-source matching engine
+        const threeResult = matchThreeSets(setA, setB, setC, matchConfig);
 
-      for (const accepted of matchResult.acceptedMatches) {
-        const isExact = accepted.classification === 'EXACT';
-        if (isExact) {
-          exactCount++;
-          exactTxnIds.push(accepted.transactionAId, accepted.transactionBId);
+        fullyMatchedCount = threeResult.statistics.fullyMatchedCount;
+        partiallyMatchedCount = threeResult.statistics.partiallyMatchedCount;
+        discrepancyCount =
+          threeResult.statistics.amountMismatchCount +
+          threeResult.statistics.dateMismatchCount +
+          threeResult.statistics.referenceMismatchCount;
+        potentialCount =
+          threeResult.statistics.potentialMatchCount +
+          partiallyMatchedCount +
+          discrepancyCount;
+        exactCount = fullyMatchedCount;
+
+        for (const g of threeResult.matchGroups) {
+          const isConfirmed = g.classification === 'FULLY_MATCHED';
+          const participatingIds = [g.transactionAId, g.transactionBId, g.transactionCId].filter(
+            (id): id is string => typeof id === 'string' && id.length > 0,
+          );
+
+          if (isConfirmed) {
+            exactTxnIds.push(...participatingIds);
+          } else {
+            potentialTxnIds.push(...participatingIds);
+          }
+
           newMatches.push({
             organizationId,
             runId,
-            transactionAId: accepted.transactionAId,
-            transactionBId: accepted.transactionBId,
-            classification: 'EXACT',
-            score: accepted.score,
+            reconciliationType: 'THREE_SOURCE',
+            transactionAId: g.transactionAId ?? null,
+            transactionBId: g.transactionBId ?? null,
+            transactionCId: g.transactionCId ?? null,
+            classification: g.classification,
+            score: g.score,
             reasons: {
-              reasonCodes: accepted.reasons,
-              contributions: accepted.contributions,
-              dateDifferenceDays: accepted.dateDifferenceDays,
-              metadata: accepted.metadata,
+              reasonCodes: g.reasons,
+              explanation: g.explanation,
+              sourceStatus: g.sourceStatus,
             },
-            status: 'CONFIRMED',
-            confirmedBy: run.createdBy ?? null,
-            confirmedAt: now,
-          });
-        } else {
-          potentialCount++;
-          potentialTxnIds.push(accepted.transactionAId, accepted.transactionBId);
-          newMatches.push({
-            organizationId,
-            runId,
-            transactionAId: accepted.transactionAId,
-            transactionBId: accepted.transactionBId,
-            classification: 'POTENTIAL',
-            score: accepted.score,
-            reasons: {
-              tier: accepted.classification,
-              reasonCodes: accepted.reasons,
-              contributions: accepted.contributions,
-              dateDifferenceDays: accepted.dateDifferenceDays,
-              metadata: accepted.metadata,
-            },
-            status: 'PENDING',
+            discrepancyDetails: g.discrepancies.length > 0 ? g.discrepancies : null,
+            status: isConfirmed ? 'CONFIRMED' : 'PENDING',
+            confirmedBy: isConfirmed ? (run.createdBy ?? null) : null,
+            confirmedAt: isConfirmed ? now : null,
           });
         }
+
+        unmatchedIds = [
+          ...threeResult.unmatchedA.map((t) => t.id),
+          ...threeResult.unmatchedB.map((t) => t.id),
+          ...threeResult.unmatchedC.map((t) => t.id),
+        ];
+      } else {
+        // Execute pairwise two-source matching engine (100% backward compatible)
+        const matchResult = matchTwoSets(setA, setB, matchConfig);
+
+        for (const accepted of matchResult.acceptedMatches) {
+          const isExact = accepted.classification === 'EXACT';
+          if (isExact) {
+            exactCount++;
+            exactTxnIds.push(accepted.transactionAId, accepted.transactionBId);
+            newMatches.push({
+              organizationId,
+              runId,
+              reconciliationType: 'TWO_SOURCE',
+              transactionAId: accepted.transactionAId,
+              transactionBId: accepted.transactionBId,
+              transactionCId: null,
+              classification: 'EXACT',
+              score: accepted.score,
+              reasons: {
+                reasonCodes: accepted.reasons,
+                contributions: accepted.contributions,
+                dateDifferenceDays: accepted.dateDifferenceDays,
+                metadata: accepted.metadata,
+              },
+              status: 'CONFIRMED',
+              confirmedBy: run.createdBy ?? null,
+              confirmedAt: now,
+            });
+          } else {
+            potentialCount++;
+            potentialTxnIds.push(accepted.transactionAId, accepted.transactionBId);
+            newMatches.push({
+              organizationId,
+              runId,
+              reconciliationType: 'TWO_SOURCE',
+              transactionAId: accepted.transactionAId,
+              transactionBId: accepted.transactionBId,
+              transactionCId: null,
+              classification: 'POTENTIAL',
+              score: accepted.score,
+              reasons: {
+                tier: accepted.classification,
+                reasonCodes: accepted.reasons,
+                contributions: accepted.contributions,
+                dateDifferenceDays: accepted.dateDifferenceDays,
+                metadata: accepted.metadata,
+              },
+              status: 'PENDING',
+            });
+          }
+        }
+
+        unmatchedIds = [...matchResult.unmatchedIdsA, ...matchResult.unmatchedIdsB];
       }
 
-      const unmatchedIds = [...matchResult.unmatchedIdsA, ...matchResult.unmatchedIdsB];
-
       // 7. Persist matches
+      let createdMatches: any[] = [];
       if (newMatches.length > 0) {
-        await this.reconciliationRepo.createMatches(newMatches);
+        createdMatches = await this.reconciliationRepo.createMatches(newMatches);
       }
 
       // 8. Update transaction statuses
@@ -206,20 +282,48 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
         status: 'COMPLETED',
         totalSourceA: txnsA.length,
         totalSourceB: txnsB.length,
+        totalSourceC: txnsC.length,
         exactMatchCount: exactCount,
         potentialMatchCount: potentialCount,
+        fullyMatchedCount,
+        partiallyMatchedCount,
+        discrepancyCount,
         unmatchedCount: unmatchedIds.length,
         config: updatedConfig,
         completedAt: now,
       });
 
-      // 10. Automatically create OPEN exceptions for unmatched transactions
-      if (unmatchedIds.length > 0 && this.exceptionsService) {
-        await this.exceptionsService.createExceptionsForUnmatched(
-          organizationId,
-          runId,
-          unmatchedIds,
-        );
+      // 10. Automatically create OPEN exceptions for unmatched transactions & discrepancies
+      if (this.exceptionsService) {
+        if (unmatchedIds.length > 0) {
+          await this.exceptionsService.createExceptionsForUnmatched(
+            organizationId,
+            runId,
+            unmatchedIds,
+          );
+        }
+
+        // For 3-source discrepancy or partial matches, create dedicated discrepancy exceptions
+        if (isThreeSource && createdMatches.length > 0) {
+          for (const m of createdMatches) {
+            if (
+              m.classification === 'PARTIALLY_MATCHED' ||
+              m.classification === 'AMOUNT_MISMATCH' ||
+              m.classification === 'DATE_MISMATCH' ||
+              m.classification === 'REFERENCE_MISMATCH'
+            ) {
+              const primaryTxnId = m.transactionAId || m.transactionBId || m.transactionCId;
+              await this.exceptionsService.createExceptionForDiscrepancy(
+                organizationId,
+                runId,
+                m.id,
+                m.classification,
+                m.discrepancyDetails,
+                primaryTxnId,
+              );
+            }
+          }
+        }
       }
 
       if (this.jobsService && jobId !== runId) {
@@ -229,8 +333,12 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
           {
             totalSourceA: txnsA.length,
             totalSourceB: txnsB.length,
+            totalSourceC: txnsC.length,
             exactMatchCount: exactCount,
             potentialMatchCount: potentialCount,
+            fullyMatchedCount,
+            partiallyMatchedCount,
+            discrepancyCount,
             unmatchedCount: unmatchedIds.length,
           },
           'Reconciliation run completed successfully',
@@ -244,8 +352,12 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
           AuditEntityType.RECONCILIATION_RUN,
           runId,
           {
+            reconciliationType: run.reconciliationType,
             exactMatchCount: exactCount,
             potentialMatchCount: potentialCount,
+            fullyMatchedCount,
+            partiallyMatchedCount,
+            discrepancyCount,
             unmatchedCount: unmatchedIds.length,
           },
         );

@@ -12,6 +12,7 @@ import {
   DatabaseIcon,
   CalendarIcon,
   SlidersIcon,
+  CheckCircleIcon,
 } from '../../shared/components/icons';
 
 export const NewReconciliationRunPage: React.FC = () => {
@@ -19,8 +20,10 @@ export const NewReconciliationRunPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [reconciliationType, setReconciliationType] = useState<'THREE_SOURCE' | 'TWO_SOURCE'>('THREE_SOURCE');
   const [sourceA, setSourceA] = useState('');
   const [sourceB, setSourceB] = useState('');
+  const [sourceC, setSourceC] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -77,14 +80,26 @@ export const NewReconciliationRunPage: React.FC = () => {
     e.preventDefault();
     setError(null);
 
-    if (!sourceA || !sourceB) {
-      setError('Please select two distinct data sources for pairwise reconciliation.');
-      return;
+    if (reconciliationType === 'THREE_SOURCE') {
+      if (!sourceA || !sourceB || !sourceC) {
+        setError('Please select three distinct data sources (Source A, Source B, and Source C) for three-way reconciliation.');
+        return;
+      }
+      if (sourceA === sourceB || sourceA === sourceC || sourceB === sourceC) {
+        setError('Data Sources A, B, and C must all be different.');
+        return;
+      }
+    } else {
+      if (!sourceA || !sourceB) {
+        setError('Please select two distinct data sources for pairwise reconciliation.');
+        return;
+      }
+      if (sourceA === sourceB) {
+        setError('Data Source A and Data Source B must be different.');
+        return;
+      }
     }
-    if (sourceA === sourceB) {
-      setError('Data Source A and Data Source B must be different.');
-      return;
-    }
+
     if (!dateFrom || !dateTo) {
       setError('Both Date From and Date To are required.');
       return;
@@ -95,17 +110,18 @@ export const NewReconciliationRunPage: React.FC = () => {
     }
 
     createRunMutation.mutate({
+      reconciliationType,
       sourceA,
       sourceB,
+      sourceC: reconciliationType === 'THREE_SOURCE' ? sourceC : undefined,
       dateFrom,
       dateTo,
-      config: showConfig
-        ? {
-            dateWindowDays,
-            potentialThreshold,
-            exactThreshold,
-          }
-        : undefined,
+      config: {
+        dateWindowDays,
+        dateToleranceDays: dateWindowDays,
+        potentialThreshold,
+        exactThreshold,
+      },
     });
   };
 
@@ -113,9 +129,10 @@ export const NewReconciliationRunPage: React.FC = () => {
 
   const sourceAName = sources?.items.find((s) => s.id === sourceA)?.name;
   const sourceBName = sources?.items.find((s) => s.id === sourceB)?.name;
+  const sourceCName = sources?.items.find((s) => s.id === sourceC)?.name;
 
   return (
-    <div style={{ maxWidth: '820px', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+    <div style={{ maxWidth: '880px', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
       <div>
         <Link
           to={`/orgs/${orgId}/reconciliation`}
@@ -127,14 +144,99 @@ export const NewReconciliationRunPage: React.FC = () => {
 
       <div>
         <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-          Start Pairwise Reconciliation Run
+          Start Reconciliation Run
         </h1>
         <p style={{ margin: '0.25rem 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.9rem' }}>
-          Compare two transaction sources within a specified date window to discover exact and potential matches.
+          Execute multi-source financial reconciliation across internal orders, gateways, and bank settlement statements.
         </p>
       </div>
 
-      {/* Guided Step Workflow Indicators (Reference 1 & 3) */}
+      {/* Mode Selection Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+        <button
+          type="button"
+          onClick={() => setReconciliationType('THREE_SOURCE')}
+          className="rx-card"
+          style={{
+            padding: '1.25rem',
+            textAlign: 'left',
+            cursor: 'pointer',
+            border: reconciliationType === 'THREE_SOURCE' ? '2px solid var(--rx-dark)' : '1px solid var(--rx-border)',
+            backgroundColor: reconciliationType === 'THREE_SOURCE' ? '#FAFAFA' : '#FFFFFF',
+            position: 'relative',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+            <span
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                padding: '0.2rem 0.5rem',
+                borderRadius: '999px',
+                backgroundColor: 'var(--rx-lime)',
+                color: 'var(--rx-dark)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}
+            >
+              Recommended • 3-Way
+            </span>
+            {reconciliationType === 'THREE_SOURCE' && (
+              <CheckCircleIcon size={18} style={{ color: 'var(--rx-dark)' }} />
+            )}
+          </div>
+          <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--rx-dark)' }}>
+            Three-Source Reconciliation
+          </div>
+          <p style={{ margin: '0.35rem 0 0', fontSize: '0.8125rem', color: 'var(--rx-text-secondary)', lineHeight: 1.4 }}>
+            Unifies Internal Orders, Payment Gateway, and Bank Statement into a single transitive reconciliation group with date tolerance.
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setReconciliationType('TWO_SOURCE')}
+          className="rx-card"
+          style={{
+            padding: '1.25rem',
+            textAlign: 'left',
+            cursor: 'pointer',
+            border: reconciliationType === 'TWO_SOURCE' ? '2px solid var(--rx-dark)' : '1px solid var(--rx-border)',
+            backgroundColor: reconciliationType === 'TWO_SOURCE' ? '#FAFAFA' : '#FFFFFF',
+            position: 'relative',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+            <span
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                padding: '0.2rem 0.5rem',
+                borderRadius: '999px',
+                backgroundColor: 'var(--rx-surface-muted)',
+                color: 'var(--rx-text-secondary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}
+            >
+              Pairwise
+            </span>
+            {reconciliationType === 'TWO_SOURCE' && (
+              <CheckCircleIcon size={18} style={{ color: 'var(--rx-dark)' }} />
+            )}
+          </div>
+          <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--rx-dark)' }}>
+            Two-Source Reconciliation
+          </div>
+          <p style={{ margin: '0.35rem 0 0', fontSize: '0.8125rem', color: 'var(--rx-text-secondary)', lineHeight: 1.4 }}>
+            Standard 1-to-1 pairwise matching between two transaction feeds (e.g. Ledger vs Payment Gateway).
+          </p>
+        </button>
+      </div>
+
+      {/* Guided Step Workflow Indicators */}
       <div
         className="rx-card"
         style={{
@@ -146,17 +248,47 @@ export const NewReconciliationRunPage: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: sourceA && sourceB ? 'var(--rx-lime)' : 'var(--rx-surface-muted)', color: 'var(--rx-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem' }}>
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              backgroundColor: (reconciliationType === 'THREE_SOURCE' ? sourceA && sourceB && sourceC : sourceA && sourceB)
+                ? 'var(--rx-lime)'
+                : 'var(--rx-surface-muted)',
+              color: 'var(--rx-dark)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: '0.8rem',
+            }}
+          >
             1
           </div>
           <div>
             <div style={{ fontSize: '0.8125rem', fontWeight: 700 }}>Select Sources</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--rx-text-secondary)' }}>Pairwise comparison</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--rx-text-secondary)' }}>
+              {reconciliationType === 'THREE_SOURCE' ? '3 distinct feeds' : 'Pairwise comparison'}
+            </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: dateFrom && dateTo ? 'var(--rx-lime)' : 'var(--rx-surface-muted)', color: 'var(--rx-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem' }}>
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              backgroundColor: dateFrom && dateTo ? 'var(--rx-lime)' : 'var(--rx-surface-muted)',
+              color: 'var(--rx-dark)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: '0.8rem',
+            }}
+          >
             2
           </div>
           <div>
@@ -166,12 +298,25 @@ export const NewReconciliationRunPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: showConfig ? 'var(--rx-lime)' : 'var(--rx-surface-muted)', color: 'var(--rx-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem' }}>
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              backgroundColor: showConfig ? 'var(--rx-lime)' : 'var(--rx-surface-muted)',
+              color: 'var(--rx-dark)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: '0.8rem',
+            }}
+          >
             3
           </div>
           <div>
             <div style={{ fontSize: '0.8125rem', fontWeight: 700 }}>Parameters</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--rx-text-secondary)' }}>Engine thresholds</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--rx-text-secondary)' }}>Tolerance & thresholds</div>
           </div>
         </div>
       </div>
@@ -196,19 +341,28 @@ export const NewReconciliationRunPage: React.FC = () => {
         </div>
       )}
 
-      {/* Step-based Structured Form (Reference 1) */}
+      {/* Step-based Structured Form */}
       <form onSubmit={handleSubmit} className="rx-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
-        {/* Step 1: Pairwise Sources */}
+        {/* Step 1: Data Sources Selection */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
             <DatabaseIcon size={16} style={{ color: 'var(--rx-text-primary)' }} />
-            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>1. Pairwise Data Sources</h3>
+            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>
+              1. {reconciliationType === 'THREE_SOURCE' ? 'Three Data Sources (A, B, and C)' : 'Pairwise Data Sources'}
+            </h3>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: reconciliationType === 'THREE_SOURCE' ? 'repeat(auto-fit, minmax(240px, 1fr))' : 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: '1.25rem',
+            }}
+          >
+            {/* Source A */}
             <div>
               <label htmlFor="source-a" className="rx-label">
-                Data Source A (e.g. Internal Ledger / Orders) *
+                Source A (Internal Orders / Ledger) *
               </label>
               <select
                 id="source-a"
@@ -237,9 +391,10 @@ export const NewReconciliationRunPage: React.FC = () => {
               )}
             </div>
 
+            {/* Source B */}
             <div>
               <label htmlFor="source-b" className="rx-label">
-                Data Source B (e.g. Bank / Payment Gateway) *
+                Source B (Payment Gateway / Processor) *
               </label>
               <select
                 id="source-b"
@@ -267,6 +422,40 @@ export const NewReconciliationRunPage: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Source C (Three-Source only) */}
+            {reconciliationType === 'THREE_SOURCE' && (
+              <div>
+                <label htmlFor="source-c" className="rx-label">
+                  Source C (Bank Settlement Statement) *
+                </label>
+                <select
+                  id="source-c"
+                  required
+                  value={sourceC}
+                  onChange={(e) => setSourceC(e.target.value)}
+                  disabled={sourcesLoading || createRunMutation.isPending}
+                  className="rx-select"
+                >
+                  <option value="">-- Select Source C --</option>
+                  {sources?.items.map((ds) => {
+                    const stats = getSourceStats(ds.id);
+                    const countLabel = stats.count > 0 ? `${stats.count.toLocaleString()} records` : '0 records';
+                    return (
+                      <option key={ds.id} value={ds.id}>
+                        {ds.name} ({ds.type} • {countLabel})
+                      </option>
+                    );
+                  })}
+                </select>
+                {sourceC && getSourceStats(sourceC).count === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--rx-warning)', marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <AlertCircleIcon size={14} />
+                    Selected data source has 0 imported records.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -287,7 +476,7 @@ export const NewReconciliationRunPage: React.FC = () => {
                   setDateTo('2026-10-31');
                 }}
               >
-                Aug – Oct 2026 (Dataset)
+                Aug – Oct 2026
               </button>
               <button
                 type="button"
@@ -360,7 +549,7 @@ export const NewReconciliationRunPage: React.FC = () => {
               className="rx-btn rx-btn-ghost rx-btn-sm"
               style={{ color: 'var(--rx-text-primary)', fontWeight: 600 }}
             >
-              {showConfig ? '▲ Hide Advanced Parameters' : '▼ Configure Thresholds'}
+              {showConfig ? '▲ Hide Advanced Parameters' : '▼ Configure Thresholds & Settlement Tolerance'}
             </button>
           </div>
 
@@ -377,7 +566,7 @@ export const NewReconciliationRunPage: React.FC = () => {
               }}
             >
               <div>
-                <label className="rx-label">Date Tolerance Window (Days)</label>
+                <label className="rx-label">Bank Settlement Date Tolerance (Days)</label>
                 <input
                   type="number"
                   min="0"
@@ -386,7 +575,9 @@ export const NewReconciliationRunPage: React.FC = () => {
                   onChange={(e) => setDateWindowDays(Number(e.target.value))}
                   className="rx-input"
                 />
-                <span style={{ fontSize: '0.7rem', color: 'var(--rx-text-muted)' }}>Default: ±2 days</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--rx-text-muted)' }}>
+                  Accounts for bank settlement delays (Default: ±2 days)
+                </span>
               </div>
 
               <div>
@@ -403,7 +594,7 @@ export const NewReconciliationRunPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="rx-label">Exact Match Threshold (%)</label>
+                <label className="rx-label">Exact Parity Threshold (%)</label>
                 <input
                   type="number"
                   min="100"
@@ -420,7 +611,7 @@ export const NewReconciliationRunPage: React.FC = () => {
         </div>
 
         {/* Step 4: Configuration Review Summary */}
-        {(sourceA || sourceB || dateFrom || dateTo) && (
+        {(sourceA || sourceB || (reconciliationType === 'THREE_SOURCE' && sourceC) || dateFrom || dateTo) && (
           <div
             style={{
               backgroundColor: 'var(--rx-dark)',
@@ -430,14 +621,24 @@ export const NewReconciliationRunPage: React.FC = () => {
               fontSize: '0.85rem',
             }}
           >
-            <span style={{ fontSize: '0.75rem', color: 'var(--rx-lime)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Execution Summary
-            </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--rx-lime)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Execution Summary
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#A3A8A0' }}>
+                Mode: {reconciliationType === 'THREE_SOURCE' ? 'Three-Way (Native)' : 'Two-Way (Pairwise)'}
+              </span>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
               <div>
-                <span style={{ color: '#A3A8A0' }}>Pair: </span>
+                <span style={{ color: '#A3A8A0' }}>Sources: </span>
                 <strong style={{ color: '#FFFFFF' }}>{sourceAName || '—'}</strong> vs{' '}
                 <strong style={{ color: '#FFFFFF' }}>{sourceBName || '—'}</strong>
+                {reconciliationType === 'THREE_SOURCE' && (
+                  <>
+                    {' '}vs <strong style={{ color: '#FFFFFF' }}>{sourceCName || '—'}</strong>
+                  </>
+                )}
               </div>
               <div>
                 <span style={{ color: '#A3A8A0' }}>Window: </span>
@@ -445,7 +646,7 @@ export const NewReconciliationRunPage: React.FC = () => {
                 <strong style={{ color: '#FFFFFF' }}>{dateTo || '—'}</strong>
               </div>
               <div>
-                <span style={{ color: '#A3A8A0' }}>Tolerance: </span>
+                <span style={{ color: '#A3A8A0' }}>Settlement Tolerance: </span>
                 <strong style={{ color: 'var(--rx-lime)' }}>±{dateWindowDays} days</strong>
               </div>
             </div>
@@ -454,11 +655,22 @@ export const NewReconciliationRunPage: React.FC = () => {
 
         <button
           type="submit"
-          disabled={createRunMutation.isPending || !sourceA || !sourceB || !dateFrom || !dateTo}
+          disabled={
+            createRunMutation.isPending ||
+            !sourceA ||
+            !sourceB ||
+            (reconciliationType === 'THREE_SOURCE' && !sourceC) ||
+            !dateFrom ||
+            !dateTo
+          }
           className="rx-btn rx-btn-dark rx-btn-lg"
           style={{ width: '100%' }}
         >
-          {createRunMutation.isPending ? 'Executing Reconciliation Run...' : 'Execute Reconciliation Run'}
+          {createRunMutation.isPending
+            ? 'Executing Reconciliation Run...'
+            : reconciliationType === 'THREE_SOURCE'
+            ? 'Execute Three-Source Reconciliation Run'
+            : 'Execute Pairwise Reconciliation Run'}
         </button>
       </form>
     </div>

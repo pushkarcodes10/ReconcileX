@@ -63,11 +63,28 @@ export class ReconciliationService {
     idempotencyKey?: string,
   ): Promise<CreateReconciliationRunResponseDto> {
     // 1. Validate distinct data sources
+    const isThreeSource = dto.reconciliationType === 'THREE_SOURCE' || !!dto.sourceC;
+
     if (dto.sourceA === dto.sourceB) {
       throw new BadRequestException({
         code: 'SAME_SOURCE',
         message: 'Source A and Source B must be different.',
       });
+    }
+
+    if (isThreeSource) {
+      if (!dto.sourceC) {
+        throw new BadRequestException({
+          code: 'MISSING_SOURCE_C',
+          message: 'Source C is required for three-source reconciliation.',
+        });
+      }
+      if (dto.sourceA === dto.sourceC || dto.sourceB === dto.sourceC) {
+        throw new BadRequestException({
+          code: 'SAME_SOURCE',
+          message: 'All three data sources (Source A, Source B, Source C) must be different.',
+        });
+      }
     }
 
     // 2. Validate date range
@@ -84,19 +101,20 @@ export class ReconciliationService {
     // 3. Verify data sources exist in this organization (prevents IDOR)
     const sourceA = await this.dataSourcesRepo.findById(orgId, dto.sourceA);
     const sourceB = await this.dataSourcesRepo.findById(orgId, dto.sourceB);
+    const sourceC = isThreeSource && dto.sourceC ? await this.dataSourcesRepo.findById(orgId, dto.sourceC) : null;
 
-    if (!sourceA || !sourceB) {
+    if (!sourceA || !sourceB || (isThreeSource && !sourceC)) {
       throw new NotFoundException({
         code: 'SOURCE_NOT_FOUND',
-        message: 'One or both data sources were not found in this organization.',
+        message: 'One or more data sources were not found in this organization.',
       });
     }
 
     // 4. Verify data sources are active
-    if (sourceA.status !== 'ACTIVE' || sourceB.status !== 'ACTIVE') {
+    if (sourceA.status !== 'ACTIVE' || sourceB.status !== 'ACTIVE' || (sourceC && sourceC.status !== 'ACTIVE')) {
       throw new BadRequestException({
         code: 'INVALID_SOURCE',
-        message: 'Both data sources must be active.',
+        message: 'All selected data sources must be active.',
       });
     }
 
@@ -108,6 +126,7 @@ export class ReconciliationService {
         const matchesParams =
           existing.sourceAId === dto.sourceA &&
           existing.sourceBId === dto.sourceB &&
+          (existing.sourceCId || undefined) === (dto.sourceC || undefined) &&
           existingConfig.dateFrom === dto.dateFrom &&
           existingConfig.dateTo === dto.dateTo;
 
@@ -127,16 +146,17 @@ export class ReconciliationService {
       }
     }
 
-    // 6. Prevent duplicate active runs for this source pair
+    // 6. Prevent duplicate active runs for this source set
     const activeRun = await this.reconciliationRepo.findActiveRunForSources(
       orgId,
       dto.sourceA,
       dto.sourceB,
+      dto.sourceC,
     );
     if (activeRun) {
       throw new ConflictException({
         code: 'RUN_ALREADY_PROCESSING',
-        message: 'A reconciliation run is already active for this data source pair.',
+        message: 'A reconciliation run is already active for this data source configuration.',
       });
     }
 
@@ -155,6 +175,7 @@ export class ReconciliationService {
     );
 
     const snapshotConfig = {
+      reconciliationType: isThreeSource ? 'THREE_SOURCE' : 'TWO_SOURCE',
       dateFrom: dto.dateFrom,
       dateTo: dto.dateTo,
       dateWindowDays,
@@ -181,15 +202,21 @@ export class ReconciliationService {
     const newRun = await this.reconciliationRepo.createRun({
       organizationId: orgId,
       displayId,
+      reconciliationType: isThreeSource ? 'THREE_SOURCE' : 'TWO_SOURCE',
       sourceAId: dto.sourceA,
       sourceBId: dto.sourceB,
+      sourceCId: dto.sourceC || null,
       status: 'PENDING',
       startedAt: now,
       config: snapshotConfig,
       totalSourceA: 0,
       totalSourceB: 0,
+      totalSourceC: 0,
       exactMatchCount: 0,
       potentialMatchCount: 0,
+      fullyMatchedCount: 0,
+      partiallyMatchedCount: 0,
+      discrepancyCount: 0,
       unmatchedCount: 0,
       idempotencyKey: idempotencyKey || null,
       createdBy: userId,
@@ -204,8 +231,10 @@ export class ReconciliationService {
         newRun.id,
         {
           displayId: newRun.displayId,
+          reconciliationType: newRun.reconciliationType,
           sourceAId: dto.sourceA,
           sourceBId: dto.sourceB,
+          sourceCId: dto.sourceC,
           dateFrom: dto.dateFrom,
           dateTo: dto.dateTo,
         },
@@ -272,6 +301,31 @@ export class ReconciliationService {
         type: run.sourceB.type,
         status: run.sourceB.status,
       },
+      sourceC: run.sourceC
+        ? {
+            id: run.sourceC.id,
+            name: run.sourceC.name,
+            type: run.sourceC.type,
+            status: run.sourceC.status,
+          }
+        : null,
+    };
+  }
+
+  private mapTransactionToDto(t?: any) {
+    if (!t) return null;
+    return {
+      id: t.id,
+      dataSourceId: t.dataSourceId,
+      externalId: t.externalId,
+      amountMinor: t.amountMinor,
+      currency: t.currency,
+      transactionDate: t.transactionDate,
+      reference: t.reference,
+      externalTxnId: t.externalTxnId,
+      merchantOrOrderId: t.merchantOrOrderId,
+      txnType: t.txnType,
+      status: t.status,
     };
   }
 
@@ -295,34 +349,13 @@ export class ReconciliationService {
 
     const mapped: MatchDetailDto[] = data.map((m) => ({
       ...m,
+      reconciliationType: m.reconciliationType,
       classification: m.classification as MatchClassification,
       status: m.status as MatchStatus,
-      transactionA: {
-        id: m.transactionA.id,
-        dataSourceId: m.transactionA.dataSourceId,
-        externalId: m.transactionA.externalId,
-        amountMinor: m.transactionA.amountMinor,
-        currency: m.transactionA.currency,
-        transactionDate: m.transactionA.transactionDate,
-        reference: m.transactionA.reference,
-        externalTxnId: m.transactionA.externalTxnId,
-        merchantOrOrderId: m.transactionA.merchantOrOrderId,
-        txnType: m.transactionA.txnType,
-        status: m.transactionA.status,
-      },
-      transactionB: {
-        id: m.transactionB.id,
-        dataSourceId: m.transactionB.dataSourceId,
-        externalId: m.transactionB.externalId,
-        amountMinor: m.transactionB.amountMinor,
-        currency: m.transactionB.currency,
-        transactionDate: m.transactionB.transactionDate,
-        reference: m.transactionB.reference,
-        externalTxnId: m.transactionB.externalTxnId,
-        merchantOrOrderId: m.transactionB.merchantOrOrderId,
-        txnType: m.transactionB.txnType,
-        status: m.transactionB.status,
-      },
+      transactionA: this.mapTransactionToDto(m.transactionA),
+      transactionB: this.mapTransactionToDto(m.transactionB),
+      transactionC: this.mapTransactionToDto(m.transactionC),
+      discrepancyDetails: (m.discrepancyDetails as any) || null,
     }));
 
     return {
@@ -390,8 +423,9 @@ export class ReconciliationService {
         updated.id,
         {
           runId: updated.runId,
-          transactionAId: updated.transactionA.id,
-          transactionBId: updated.transactionB.id,
+          transactionAId: updated.transactionA?.id,
+          transactionBId: updated.transactionB?.id,
+          transactionCId: updated.transactionC?.id,
           score: updated.score,
         },
       );
@@ -399,34 +433,13 @@ export class ReconciliationService {
 
     return {
       ...updated,
+      reconciliationType: updated.reconciliationType,
       classification: updated.classification as MatchClassification,
       status: updated.status as MatchStatus,
-      transactionA: {
-        id: updated.transactionA.id,
-        dataSourceId: updated.transactionA.dataSourceId,
-        externalId: updated.transactionA.externalId,
-        amountMinor: updated.transactionA.amountMinor,
-        currency: updated.transactionA.currency,
-        transactionDate: updated.transactionA.transactionDate,
-        reference: updated.transactionA.reference,
-        externalTxnId: updated.transactionA.externalTxnId,
-        merchantOrOrderId: updated.transactionA.merchantOrOrderId,
-        txnType: updated.transactionA.txnType,
-        status: updated.transactionA.status,
-      },
-      transactionB: {
-        id: updated.transactionB.id,
-        dataSourceId: updated.transactionB.dataSourceId,
-        externalId: updated.transactionB.externalId,
-        amountMinor: updated.transactionB.amountMinor,
-        currency: updated.transactionB.currency,
-        transactionDate: updated.transactionB.transactionDate,
-        reference: updated.transactionB.reference,
-        externalTxnId: updated.transactionB.externalTxnId,
-        merchantOrOrderId: updated.transactionB.merchantOrOrderId,
-        txnType: updated.transactionB.txnType,
-        status: updated.transactionB.status,
-      },
+      transactionA: this.mapTransactionToDto(updated.transactionA),
+      transactionB: this.mapTransactionToDto(updated.transactionB),
+      transactionC: this.mapTransactionToDto(updated.transactionC),
+      discrepancyDetails: (updated.discrepancyDetails as any) || null,
     };
   }
 
@@ -447,60 +460,47 @@ export class ReconciliationService {
         updated.id,
         {
           runId: updated.runId,
-          transactionAId: updated.transactionA.id,
-          transactionBId: updated.transactionB.id,
+          transactionAId: updated.transactionA?.id,
+          transactionBId: updated.transactionB?.id,
+          transactionCId: updated.transactionC?.id,
           reason: dto.reason,
         },
       );
     }
 
     if (this.exceptionsService) {
-      if (updated.transactionA.status === 'UNMATCHED') {
+      if (updated.transactionA && updated.transactionA.status === 'UNMATCHED') {
         await this.exceptionsService.createExceptionsForUnmatched(
           orgId,
           updated.runId,
           [updated.transactionA.id],
         );
       }
-      if (updated.transactionB.status === 'UNMATCHED') {
+      if (updated.transactionB && updated.transactionB.status === 'UNMATCHED') {
         await this.exceptionsService.createExceptionsForUnmatched(
           orgId,
           updated.runId,
           [updated.transactionB.id],
         );
       }
+      if (updated.transactionC && updated.transactionC.status === 'UNMATCHED') {
+        await this.exceptionsService.createExceptionsForUnmatched(
+          orgId,
+          updated.runId,
+          [updated.transactionC.id],
+        );
+      }
     }
 
     return {
       ...updated,
+      reconciliationType: updated.reconciliationType,
       classification: updated.classification as MatchClassification,
       status: updated.status as MatchStatus,
-      transactionA: {
-        id: updated.transactionA.id,
-        dataSourceId: updated.transactionA.dataSourceId,
-        externalId: updated.transactionA.externalId,
-        amountMinor: updated.transactionA.amountMinor,
-        currency: updated.transactionA.currency,
-        transactionDate: updated.transactionA.transactionDate,
-        reference: updated.transactionA.reference,
-        externalTxnId: updated.transactionA.externalTxnId,
-        merchantOrOrderId: updated.transactionA.merchantOrOrderId,
-        txnType: updated.transactionA.txnType,
-        status: updated.transactionA.status,
-      },
-      transactionB: {
-        id: updated.transactionB.id,
-        dataSourceId: updated.transactionB.dataSourceId,
-        externalId: updated.transactionB.externalId,
-        amountMinor: updated.transactionB.amountMinor,
-        currency: updated.transactionB.currency,
-        transactionDate: updated.transactionB.transactionDate,
-        reference: updated.transactionB.reference,
-        externalTxnId: updated.transactionB.externalTxnId,
-        merchantOrOrderId: updated.transactionB.merchantOrOrderId,
-        txnType: updated.transactionB.txnType,
-        status: updated.transactionB.status,
-      },
+      transactionA: this.mapTransactionToDto(updated.transactionA),
+      transactionB: this.mapTransactionToDto(updated.transactionB),
+      transactionC: this.mapTransactionToDto(updated.transactionC),
+      discrepancyDetails: (updated.discrepancyDetails as any) || null,
     };
   }
 }
