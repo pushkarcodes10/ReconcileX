@@ -6,6 +6,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Readable } from 'stream';
@@ -167,5 +168,26 @@ export class MinioStorageService implements StorageService, OnModuleInit {
     } catch {
       return false;
     }
+  }
+
+  public async getPresignedUrl(key: string, expiresInSeconds = 3600): Promise<string> {
+    if (this.isMinioAvailable) {
+      try {
+        const command = new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        });
+        return await getSignedUrl(this.s3Client, command, { expiresIn: expiresInSeconds });
+      } catch (err) {
+        this.logger.warn(`Failed to generate S3 presigned URL: ${(err as Error).message}`);
+      }
+    }
+
+    if (this.fallbackStorage.has(key)) {
+      const buffer = this.fallbackStorage.get(key)!;
+      return `data:image/png;base64,${buffer.toString('base64')}`;
+    }
+
+    return `https://s3.local-mock.internal/${encodeURIComponent(key)}?expires=3600`;
   }
 }

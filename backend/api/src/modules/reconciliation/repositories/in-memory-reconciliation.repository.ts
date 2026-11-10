@@ -44,6 +44,7 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
       sourceAId: newRun.sourceAId,
       sourceBId: newRun.sourceBId,
       sourceCId: newRun.sourceCId || null,
+      sourceDId: newRun.sourceDId || null,
       status: newRun.status || 'PENDING',
       startedAt: newRun.startedAt instanceof Date ? newRun.startedAt : now,
       completedAt: newRun.completedAt instanceof Date ? newRun.completedAt : null,
@@ -51,6 +52,7 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
       totalSourceA: newRun.totalSourceA ?? 0,
       totalSourceB: newRun.totalSourceB ?? 0,
       totalSourceC: newRun.totalSourceC ?? 0,
+      totalSourceD: newRun.totalSourceD ?? 0,
       exactMatchCount: newRun.exactMatchCount ?? 0,
       potentialMatchCount: newRun.potentialMatchCount ?? 0,
       fullyMatchedCount: newRun.fullyMatchedCount ?? 0,
@@ -122,11 +124,17 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
       deletedAt: null,
     });
 
+    let sourceD: DataSource | null = null;
+    if (run.sourceDId && this.dataSourcesRepo) {
+      sourceD = await this.dataSourcesRepo.findById(orgId, run.sourceDId);
+    }
+
     return {
       ...run,
       sourceA: sourceA || defaultSource(run.sourceAId),
       sourceB: sourceB || defaultSource(run.sourceBId),
       sourceC: sourceC || (run.sourceCId ? defaultSource(run.sourceCId) : null),
+      sourceD: sourceD || (run.sourceDId ? defaultSource(run.sourceDId) : null),
     };
   }
 
@@ -140,13 +148,24 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
     sourceAId: string,
     sourceBId: string,
     sourceCId?: string,
+    sourceDId?: string,
   ): Promise<ReconciliationRun | null> {
     const activeStatuses = ['PENDING', 'PROCESSING'];
-    const targetSources = new Set([sourceAId, sourceBId, ...(sourceCId ? [sourceCId] : [])]);
+    const targetSources = new Set([
+      sourceAId,
+      sourceBId,
+      ...(sourceCId ? [sourceCId] : []),
+      ...(sourceDId ? [sourceDId] : []),
+    ]);
 
     const run = this.runs.find((r) => {
       if (r.organizationId !== orgId || !activeStatuses.includes(r.status)) return false;
-      const runSources = new Set([r.sourceAId, r.sourceBId, ...(r.sourceCId ? [r.sourceCId] : [])]);
+      const runSources = new Set([
+        r.sourceAId,
+        r.sourceBId,
+        ...(r.sourceCId ? [r.sourceCId] : []),
+        ...(r.sourceDId ? [r.sourceDId] : []),
+      ]);
       return runSources.size === targetSources.size && [...targetSources].every((s) => runSources.has(s));
     });
     return run ? { ...run } : null;
@@ -232,6 +251,7 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
         transactionAId: nm.transactionAId || null,
         transactionBId: nm.transactionBId || null,
         transactionCId: nm.transactionCId || null,
+        transactionDId: nm.transactionDId || null,
         classification: nm.classification,
         score: nm.score,
         reasons: (nm.reasons as Record<string, unknown>) || {},
@@ -277,11 +297,13 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
       let txnA: Transaction | null = null;
       let txnB: Transaction | null = null;
       let txnC: Transaction | null = null;
+      let txnD: Transaction | null = null;
 
       if (this.transactionsRepo) {
         if (m.transactionAId) txnA = await this.transactionsRepo.findById(orgId, m.transactionAId);
         if (m.transactionBId) txnB = await this.transactionsRepo.findById(orgId, m.transactionBId);
         if (m.transactionCId) txnC = await this.transactionsRepo.findById(orgId, m.transactionCId);
+        if (m.transactionDId) txnD = await this.transactionsRepo.findById(orgId, m.transactionDId);
       }
 
       withTxns.push({
@@ -289,6 +311,7 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
         transactionA: txnA,
         transactionB: txnB,
         transactionC: txnC,
+        transactionD: txnD,
       });
     }
 
@@ -302,11 +325,13 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
     let txnA: Transaction | null = null;
     let txnB: Transaction | null = null;
     let txnC: Transaction | null = null;
+    let txnD: Transaction | null = null;
 
     if (this.transactionsRepo) {
       if (match.transactionAId) txnA = await this.transactionsRepo.findById(orgId, match.transactionAId);
       if (match.transactionBId) txnB = await this.transactionsRepo.findById(orgId, match.transactionBId);
       if (match.transactionCId) txnC = await this.transactionsRepo.findById(orgId, match.transactionCId);
+      if (match.transactionDId) txnD = await this.transactionsRepo.findById(orgId, match.transactionDId);
     }
 
     return {
@@ -314,6 +339,7 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
       transactionA: txnA,
       transactionB: txnB,
       transactionC: txnC,
+      transactionD: txnD,
     };
   }
 
@@ -351,9 +377,12 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
       });
     }
 
-    const txnIds = [match.transactionAId, match.transactionBId, match.transactionCId].filter(
-      (id): id is string => typeof id === 'string' && id.length > 0,
-    );
+    const txnIds = [
+      match.transactionAId,
+      match.transactionBId,
+      match.transactionCId,
+      match.transactionDId,
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0);
 
     // Check transactions
     if (this.transactionsRepo) {
@@ -430,9 +459,12 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
       };
     }
 
-    const txnIds = [match.transactionAId, match.transactionBId, match.transactionCId].filter(
-      (id): id is string => typeof id === 'string' && id.length > 0,
-    );
+    const txnIds = [
+      match.transactionAId,
+      match.transactionBId,
+      match.transactionCId,
+      match.transactionDId,
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0);
 
     // Recalculate transaction statuses for A, B, and C
     if (this.transactionsRepo) {
@@ -442,7 +474,10 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
           (m) =>
             m.organizationId === orgId &&
             m.id !== matchId &&
-            (m.transactionAId === txnId || m.transactionBId === txnId || m.transactionCId === txnId),
+            (m.transactionAId === txnId ||
+              m.transactionBId === txnId ||
+              m.transactionCId === txnId ||
+              m.transactionDId === txnId),
         );
 
         const hasConfirmed = otherMatches.some((m) => m.status === 'CONFIRMED');
@@ -517,14 +552,24 @@ export class InMemoryReconciliationRepository implements IReconciliationReposito
         );
       }
 
+      let txnsD: Transaction[] = [];
+      if (run.sourceDId) {
+        txnsD = await this.transactionsRepo.findEligibleForReconciliation(
+          orgId,
+          run.sourceDId,
+          fromDate,
+          toDate,
+        );
+      }
+
       const matchedInRun = new Set(
         this.matches
           .filter((m) => m.runId === run.id)
-          .flatMap((m) => [m.transactionAId, m.transactionBId, m.transactionCId])
+          .flatMap((m) => [m.transactionAId, m.transactionBId, m.transactionCId, m.transactionDId])
           .filter(Boolean),
       );
 
-      allUnmatched = [...txnsA, ...txnsB, ...txnsC].filter((t) => !matchedInRun.has(t.id));
+      allUnmatched = [...txnsA, ...txnsB, ...txnsC, ...txnsD].filter((t) => !matchedInRun.has(t.id));
     }
 
     const total = allUnmatched.length;

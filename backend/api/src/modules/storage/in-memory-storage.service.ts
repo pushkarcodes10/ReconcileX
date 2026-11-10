@@ -35,6 +35,14 @@ export class InMemoryStorageService implements StorageService {
     return this.storage.has(key);
   }
 
+  public async getPresignedUrl(key: string, _expiresInSeconds = 3600): Promise<string> {
+    const data = this.storage.get(key);
+    if (data) {
+      return `data:image/png;base64,${data.toString('base64')}`;
+    }
+    return `https://s3.local-mock.internal/${encodeURIComponent(key)}?expires=3600`;
+  }
+
   public clear(): void {
     this.storage.clear();
   }

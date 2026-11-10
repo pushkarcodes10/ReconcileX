@@ -20,10 +20,13 @@ export const NewReconciliationRunPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [reconciliationType, setReconciliationType] = useState<'THREE_SOURCE' | 'TWO_SOURCE'>('THREE_SOURCE');
+  const [reconciliationType, setReconciliationType] = useState<
+    'FOUR_SOURCE' | 'THREE_SOURCE' | 'TWO_SOURCE'
+  >('THREE_SOURCE');
   const [sourceA, setSourceA] = useState('');
   const [sourceB, setSourceB] = useState('');
   const [sourceC, setSourceC] = useState('');
+  const [sourceD, setSourceD] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -80,7 +83,19 @@ export const NewReconciliationRunPage: React.FC = () => {
     e.preventDefault();
     setError(null);
 
-    if (reconciliationType === 'THREE_SOURCE') {
+    if (reconciliationType === 'FOUR_SOURCE') {
+      if (!sourceA || !sourceB || !sourceC || !sourceD) {
+        setError(
+          'Please select all four distinct data sources (Source A, Source B, Source C, and Source D) for four-way reconciliation.',
+        );
+        return;
+      }
+      const set = new Set([sourceA, sourceB, sourceC, sourceD]);
+      if (set.size !== 4) {
+        setError('Data Sources A, B, C, and D must all be different.');
+        return;
+      }
+    } else if (reconciliationType === 'THREE_SOURCE') {
       if (!sourceA || !sourceB || !sourceC) {
         setError('Please select three distinct data sources (Source A, Source B, and Source C) for three-way reconciliation.');
         return;
@@ -113,7 +128,8 @@ export const NewReconciliationRunPage: React.FC = () => {
       reconciliationType,
       sourceA,
       sourceB,
-      sourceC: reconciliationType === 'THREE_SOURCE' ? sourceC : undefined,
+      sourceC: reconciliationType === 'FOUR_SOURCE' || reconciliationType === 'THREE_SOURCE' ? sourceC : undefined,
+      sourceD: reconciliationType === 'FOUR_SOURCE' ? sourceD : undefined,
       dateFrom,
       dateTo,
       config: {
@@ -152,7 +168,48 @@ export const NewReconciliationRunPage: React.FC = () => {
       </div>
 
       {/* Mode Selection Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+        <button
+          type="button"
+          onClick={() => setReconciliationType('FOUR_SOURCE')}
+          className="rx-card"
+          style={{
+            padding: '1.25rem',
+            textAlign: 'left',
+            cursor: 'pointer',
+            border: reconciliationType === 'FOUR_SOURCE' ? '2px solid var(--rx-dark)' : '1px solid var(--rx-border)',
+            backgroundColor: reconciliationType === 'FOUR_SOURCE' ? '#FAFAFA' : '#FFFFFF',
+            position: 'relative',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+            <span
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                padding: '0.2rem 0.5rem',
+                borderRadius: '999px',
+                backgroundColor: 'var(--rx-lime)',
+                color: 'var(--rx-dark)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}
+            >
+              Omni • 4-Way
+            </span>
+            {reconciliationType === 'FOUR_SOURCE' && (
+              <CheckCircleIcon size={18} style={{ color: 'var(--rx-dark)' }} />
+            )}
+          </div>
+          <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--rx-dark)' }}>
+            Four-Source Reconciliation
+          </div>
+          <p style={{ margin: '0.35rem 0 0', fontSize: '0.8125rem', color: 'var(--rx-text-secondary)', lineHeight: 1.4 }}>
+            Unifies Internal Orders, Payment Gateway, Bank Statement, and Screenshot/UPI receipts into a single 4-way group.
+          </p>
+        </button>
+
         <button
           type="button"
           onClick={() => setReconciliationType('THREE_SOURCE')}
@@ -174,13 +231,13 @@ export const NewReconciliationRunPage: React.FC = () => {
                 fontWeight: 700,
                 padding: '0.2rem 0.5rem',
                 borderRadius: '999px',
-                backgroundColor: 'var(--rx-lime)',
+                backgroundColor: 'var(--rx-surface-hover)',
                 color: 'var(--rx-dark)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
               }}
             >
-              Recommended • 3-Way
+              3-Way Native
             </span>
             {reconciliationType === 'THREE_SOURCE' && (
               <CheckCircleIcon size={18} style={{ color: 'var(--rx-dark)' }} />
@@ -190,7 +247,7 @@ export const NewReconciliationRunPage: React.FC = () => {
             Three-Source Reconciliation
           </div>
           <p style={{ margin: '0.35rem 0 0', fontSize: '0.8125rem', color: 'var(--rx-text-secondary)', lineHeight: 1.4 }}>
-            Unifies Internal Orders, Payment Gateway, and Bank Statement into a single transitive reconciliation group with date tolerance.
+            Unifies Internal Orders, Payment Gateway, and Bank Statement into a single transitive reconciliation group.
           </p>
         </button>
 
@@ -231,7 +288,7 @@ export const NewReconciliationRunPage: React.FC = () => {
             Two-Source Reconciliation
           </div>
           <p style={{ margin: '0.35rem 0 0', fontSize: '0.8125rem', color: 'var(--rx-text-secondary)', lineHeight: 1.4 }}>
-            Standard 1-to-1 pairwise matching between two transaction feeds (e.g. Ledger vs Payment Gateway).
+            Standard 1-to-1 pairwise matching between two transaction feeds.
           </p>
         </button>
       </div>
@@ -348,14 +405,24 @@ export const NewReconciliationRunPage: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
             <DatabaseIcon size={16} style={{ color: 'var(--rx-text-primary)' }} />
             <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>
-              1. {reconciliationType === 'THREE_SOURCE' ? 'Three Data Sources (A, B, and C)' : 'Pairwise Data Sources'}
+              1.{' '}
+              {reconciliationType === 'FOUR_SOURCE'
+                ? 'Four Data Sources (A, B, C, and D)'
+                : reconciliationType === 'THREE_SOURCE'
+                ? 'Three Data Sources (A, B, and C)'
+                : 'Pairwise Data Sources'}
             </h3>
           </div>
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: reconciliationType === 'THREE_SOURCE' ? 'repeat(auto-fit, minmax(240px, 1fr))' : 'repeat(auto-fit, minmax(280px, 1fr))',
+              gridTemplateColumns:
+                reconciliationType === 'FOUR_SOURCE'
+                  ? 'repeat(auto-fit, minmax(220px, 1fr))'
+                  : reconciliationType === 'THREE_SOURCE'
+                  ? 'repeat(auto-fit, minmax(240px, 1fr))'
+                  : 'repeat(auto-fit, minmax(280px, 1fr))',
               gap: '1.25rem',
             }}
           >
@@ -376,9 +443,10 @@ export const NewReconciliationRunPage: React.FC = () => {
                 {sources?.items.map((ds) => {
                   const stats = getSourceStats(ds.id);
                   const countLabel = stats.count > 0 ? `${stats.count.toLocaleString()} records` : '0 records';
+                  const typeLabel = ds.type === 'SCREENSHOT' ? '📸 SCREENSHOT DATASET' : ds.type;
                   return (
                     <option key={ds.id} value={ds.id}>
-                      {ds.name} ({ds.type} • {countLabel})
+                      {ds.name} ({typeLabel} • {countLabel})
                     </option>
                   );
                 })}
@@ -408,9 +476,10 @@ export const NewReconciliationRunPage: React.FC = () => {
                 {sources?.items.map((ds) => {
                   const stats = getSourceStats(ds.id);
                   const countLabel = stats.count > 0 ? `${stats.count.toLocaleString()} records` : '0 records';
+                  const typeLabel = ds.type === 'SCREENSHOT' ? '📸 SCREENSHOT DATASET' : ds.type;
                   return (
                     <option key={ds.id} value={ds.id}>
-                      {ds.name} ({ds.type} • {countLabel})
+                      {ds.name} ({typeLabel} • {countLabel})
                     </option>
                   );
                 })}
@@ -423,8 +492,8 @@ export const NewReconciliationRunPage: React.FC = () => {
               )}
             </div>
 
-            {/* Source C (Three-Source only) */}
-            {reconciliationType === 'THREE_SOURCE' && (
+            {/* Source C (Three-Source or Four-Source) */}
+            {(reconciliationType === 'THREE_SOURCE' || reconciliationType === 'FOUR_SOURCE') && (
               <div>
                 <label htmlFor="source-c" className="rx-label">
                   Source C (Bank Settlement Statement) *
@@ -441,14 +510,50 @@ export const NewReconciliationRunPage: React.FC = () => {
                   {sources?.items.map((ds) => {
                     const stats = getSourceStats(ds.id);
                     const countLabel = stats.count > 0 ? `${stats.count.toLocaleString()} records` : '0 records';
+                    const typeLabel = ds.type === 'SCREENSHOT' ? '📸 SCREENSHOT DATASET' : ds.type;
                     return (
                       <option key={ds.id} value={ds.id}>
-                        {ds.name} ({ds.type} • {countLabel})
+                        {ds.name} ({typeLabel} • {countLabel})
                       </option>
                     );
                   })}
                 </select>
                 {sourceC && getSourceStats(sourceC).count === 0 && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--rx-warning)', marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <AlertCircleIcon size={14} />
+                    Selected data source has 0 imported records.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Source D (Four-Source only) */}
+            {reconciliationType === 'FOUR_SOURCE' && (
+              <div>
+                <label htmlFor="source-d" className="rx-label">
+                  Source D (Screenshot / UPI Receipt Feed) *
+                </label>
+                <select
+                  id="source-d"
+                  required
+                  value={sourceD}
+                  onChange={(e) => setSourceD(e.target.value)}
+                  disabled={sourcesLoading || createRunMutation.isPending}
+                  className="rx-select"
+                >
+                  <option value="">-- Select Source D --</option>
+                  {sources?.items.map((ds) => {
+                    const stats = getSourceStats(ds.id);
+                    const countLabel = stats.count > 0 ? `${stats.count.toLocaleString()} records` : '0 records';
+                    const typeLabel = ds.type === 'SCREENSHOT' ? '📸 SCREENSHOT DATASET' : ds.type;
+                    return (
+                      <option key={ds.id} value={ds.id}>
+                        {ds.name} ({typeLabel} • {countLabel})
+                      </option>
+                    );
+                  })}
+                </select>
+                {sourceD && getSourceStats(sourceD).count === 0 && (
                   <div style={{ fontSize: '0.8rem', color: 'var(--rx-warning)', marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <AlertCircleIcon size={14} />
                     Selected data source has 0 imported records.

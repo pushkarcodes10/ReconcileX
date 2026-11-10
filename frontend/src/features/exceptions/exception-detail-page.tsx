@@ -18,7 +18,10 @@ import {
   UserIcon,
   CheckCircleIcon,
   ReceiptIcon,
+  CameraIcon,
+  XIcon,
 } from '../../shared/components/icons';
+import { screenshotApi } from '../../api/endpoints/screenshot';
 
 export const ExceptionDetailPage: React.FC = () => {
   const { orgId, id } = useParams<{ orgId: string; id: string }>();
@@ -32,6 +35,25 @@ export const ExceptionDetailPage: React.FC = () => {
   const [resolutionAction, setResolutionAction] = useState<ResolutionAction>('MANUALLY_RECONCILED');
   const [selectedAssignee, setSelectedAssignee] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Screenshot preview modal state
+  const [previewModalFile, setPreviewModalFile] = useState<{ url: string; filename: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const handleViewScreenshot = async (fileId: string, filename?: string) => {
+    try {
+      setPreviewLoading(true);
+      const res = await screenshotApi.getFilePreviewUrl(orgId!, fileId);
+      setPreviewModalFile({
+        url: res.previewUrl,
+        filename: filename ? `Screenshot (${filename})` : `Receipt #${fileId.slice(0, 8)}`,
+      });
+    } catch (err: any) {
+      setActionError(err?.message || 'Failed to fetch screenshot preview URL.');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   // 1. Fetch Exception Details
   const { data: ex, isLoading, error, refetch } = useQuery({
@@ -278,6 +300,30 @@ export const ExceptionDetailPage: React.FC = () => {
                         </Link>
                       </td>
                     </tr>
+                    {ex.transaction.screenshotFileId && (
+                      <tr>
+                        <td style={{ color: 'var(--rx-text-secondary)', fontWeight: 600 }}>Original Source Image</td>
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() => handleViewScreenshot(ex.transaction!.screenshotFileId!, ex.transaction!.externalId)}
+                            className="rx-btn rx-btn-secondary rx-btn-sm"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              backgroundColor: '#EFF6FF',
+                              borderColor: '#BFDBFE',
+                              color: '#1D4ED8',
+                              fontWeight: 600,
+                            }}
+                            disabled={previewLoading}
+                          >
+                            <CameraIcon size={14} /> View Original Screenshot
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -553,6 +599,61 @@ export const ExceptionDetailPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* SCREENSHOT PREVIEW MODAL */}
+      {previewModalFile && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: '1.5rem',
+          }}
+          onClick={() => setPreviewModalFile(null)}
+        >
+          <div
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              backgroundColor: '#1E293B',
+              borderRadius: 'var(--rx-radius-lg)',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: '#F8FAFC' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{previewModalFile.filename}</span>
+              <button
+                type="button"
+                onClick={() => setPreviewModalFile(null)}
+                style={{ background: 'none', border: 'none', color: '#F8FAFC', cursor: 'pointer' }}
+              >
+                <XIcon size={20} />
+              </button>
+            </div>
+            <img
+              src={previewModalFile.url}
+              alt="Screenshot Preview"
+              style={{
+                maxWidth: '85vw',
+                maxHeight: '80vh',
+                objectFit: 'contain',
+                borderRadius: 'var(--rx-radius-md)',
+              }}
+            />
           </div>
         </div>
       )}

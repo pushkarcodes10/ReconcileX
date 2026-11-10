@@ -24,4 +24,9 @@ export interface StorageService {
    * Checks whether an object exists by key.
    */
   objectExists(key: string): Promise<boolean>;
+
+  /**
+   * Generates a secure presigned URL for private object access.
+   */
+  getPresignedUrl(key: string, expiresInSeconds?: number): Promise<string>;
 }

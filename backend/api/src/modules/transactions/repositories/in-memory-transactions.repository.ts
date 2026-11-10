@@ -196,6 +196,7 @@ export class InMemoryTransactionsRepository implements ITransactionsRepository {
         merchantOrOrderId: nt.merchantOrOrderId ?? null,
         txnType: nt.txnType ?? null,
         status: nt.status || 'UNMATCHED',
+        screenshotFileId: nt.screenshotFileId ?? null,
         normalizedPayload: (nt.normalizedPayload as Record<string, unknown>) ?? null,
         fingerprint: nt.fingerprint ?? null,
         createdAt: nt.createdAt instanceof Date ? nt.createdAt : now,

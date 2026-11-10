@@ -63,7 +63,8 @@ export class ReconciliationService {
     idempotencyKey?: string,
   ): Promise<CreateReconciliationRunResponseDto> {
     // 1. Validate distinct data sources
-    const isThreeSource = dto.reconciliationType === 'THREE_SOURCE' || !!dto.sourceC;
+    const isFourSource = dto.reconciliationType === 'FOUR_SOURCE' || !!dto.sourceD;
+    const isThreeSource = !isFourSource && (dto.reconciliationType === 'THREE_SOURCE' || !!dto.sourceC);
 
     if (dto.sourceA === dto.sourceB) {
       throw new BadRequestException({
@@ -72,7 +73,21 @@ export class ReconciliationService {
       });
     }
 
-    if (isThreeSource) {
+    if (isFourSource) {
+      if (!dto.sourceC || !dto.sourceD) {
+        throw new BadRequestException({
+          code: 'MISSING_SOURCES',
+          message: 'Source C and Source D are both required for four-source reconciliation.',
+        });
+      }
+      const uniqueSources = new Set([dto.sourceA, dto.sourceB, dto.sourceC, dto.sourceD]);
+      if (uniqueSources.size !== 4) {
+        throw new BadRequestException({
+          code: 'SAME_SOURCE',
+          message: 'All four data sources (Source A, Source B, Source C, Source D) must be unique.',
+        });
+      }
+    } else if (isThreeSource) {
       if (!dto.sourceC) {
         throw new BadRequestException({
           code: 'MISSING_SOURCE_C',
@@ -101,9 +116,14 @@ export class ReconciliationService {
     // 3. Verify data sources exist in this organization (prevents IDOR)
     const sourceA = await this.dataSourcesRepo.findById(orgId, dto.sourceA);
     const sourceB = await this.dataSourcesRepo.findById(orgId, dto.sourceB);
-    const sourceC = isThreeSource && dto.sourceC ? await this.dataSourcesRepo.findById(orgId, dto.sourceC) : null;
+    const sourceC =
+      (isThreeSource || isFourSource) && dto.sourceC
+        ? await this.dataSourcesRepo.findById(orgId, dto.sourceC)
+        : null;
+    const sourceD =
+      isFourSource && dto.sourceD ? await this.dataSourcesRepo.findById(orgId, dto.sourceD) : null;
 
-    if (!sourceA || !sourceB || (isThreeSource && !sourceC)) {
+    if (!sourceA || !sourceB || ((isThreeSource || isFourSource) && !sourceC) || (isFourSource && !sourceD)) {
       throw new NotFoundException({
         code: 'SOURCE_NOT_FOUND',
         message: 'One or more data sources were not found in this organization.',
@@ -111,7 +131,12 @@ export class ReconciliationService {
     }
 
     // 4. Verify data sources are active
-    if (sourceA.status !== 'ACTIVE' || sourceB.status !== 'ACTIVE' || (sourceC && sourceC.status !== 'ACTIVE')) {
+    if (
+      sourceA.status !== 'ACTIVE' ||
+      sourceB.status !== 'ACTIVE' ||
+      (sourceC && sourceC.status !== 'ACTIVE') ||
+      (sourceD && sourceD.status !== 'ACTIVE')
+    ) {
       throw new BadRequestException({
         code: 'INVALID_SOURCE',
         message: 'All selected data sources must be active.',
@@ -127,6 +152,7 @@ export class ReconciliationService {
           existing.sourceAId === dto.sourceA &&
           existing.sourceBId === dto.sourceB &&
           (existing.sourceCId || undefined) === (dto.sourceC || undefined) &&
+          (existing.sourceDId || undefined) === (dto.sourceD || undefined) &&
           existingConfig.dateFrom === dto.dateFrom &&
           existingConfig.dateTo === dto.dateTo;
 
@@ -152,6 +178,7 @@ export class ReconciliationService {
       dto.sourceA,
       dto.sourceB,
       dto.sourceC,
+      dto.sourceD,
     );
     if (activeRun) {
       throw new ConflictException({
@@ -174,8 +201,14 @@ export class ReconciliationService {
       Math.min(80, exactThreshold),
     );
 
+    const runType = isFourSource
+      ? 'FOUR_SOURCE'
+      : isThreeSource
+        ? 'THREE_SOURCE'
+        : 'TWO_SOURCE';
+
     const snapshotConfig = {
-      reconciliationType: isThreeSource ? 'THREE_SOURCE' : 'TWO_SOURCE',
+      reconciliationType: runType,
       dateFrom: dto.dateFrom,
       dateTo: dto.dateTo,
       dateWindowDays,
@@ -202,16 +235,18 @@ export class ReconciliationService {
     const newRun = await this.reconciliationRepo.createRun({
       organizationId: orgId,
       displayId,
-      reconciliationType: isThreeSource ? 'THREE_SOURCE' : 'TWO_SOURCE',
+      reconciliationType: runType,
       sourceAId: dto.sourceA,
       sourceBId: dto.sourceB,
       sourceCId: dto.sourceC || null,
+      sourceDId: dto.sourceD || null,
       status: 'PENDING',
       startedAt: now,
       config: snapshotConfig,
       totalSourceA: 0,
       totalSourceB: 0,
       totalSourceC: 0,
+      totalSourceD: 0,
       exactMatchCount: 0,
       potentialMatchCount: 0,
       fullyMatchedCount: 0,
@@ -309,6 +344,14 @@ export class ReconciliationService {
             status: run.sourceC.status,
           }
         : null,
+      sourceD: run.sourceD
+        ? {
+            id: run.sourceD.id,
+            name: run.sourceD.name,
+            type: run.sourceD.type,
+            status: run.sourceD.status,
+          }
+        : null,
     };
   }
 
@@ -326,6 +369,7 @@ export class ReconciliationService {
       merchantOrOrderId: t.merchantOrOrderId,
       txnType: t.txnType,
       status: t.status,
+      screenshotFileId: t.screenshotFileId || null,
     };
   }
 
@@ -355,6 +399,7 @@ export class ReconciliationService {
       transactionA: this.mapTransactionToDto(m.transactionA),
       transactionB: this.mapTransactionToDto(m.transactionB),
       transactionC: this.mapTransactionToDto(m.transactionC),
+      transactionD: this.mapTransactionToDto(m.transactionD),
       discrepancyDetails: (m.discrepancyDetails as any) || null,
     }));
 
@@ -399,6 +444,7 @@ export class ReconciliationService {
       transactionDate: t.transactionDate,
       reference: t.reference,
       status: t.status,
+      screenshotFileId: t.screenshotFileId || null,
     }));
 
     return {
@@ -426,6 +472,7 @@ export class ReconciliationService {
           transactionAId: updated.transactionA?.id,
           transactionBId: updated.transactionB?.id,
           transactionCId: updated.transactionC?.id,
+          transactionDId: updated.transactionD?.id,
           score: updated.score,
         },
       );
@@ -439,6 +486,7 @@ export class ReconciliationService {
       transactionA: this.mapTransactionToDto(updated.transactionA),
       transactionB: this.mapTransactionToDto(updated.transactionB),
       transactionC: this.mapTransactionToDto(updated.transactionC),
+      transactionD: this.mapTransactionToDto(updated.transactionD),
       discrepancyDetails: (updated.discrepancyDetails as any) || null,
     };
   }
@@ -463,6 +511,7 @@ export class ReconciliationService {
           transactionAId: updated.transactionA?.id,
           transactionBId: updated.transactionB?.id,
           transactionCId: updated.transactionC?.id,
+          transactionDId: updated.transactionD?.id,
           reason: dto.reason,
         },
       );
@@ -490,6 +539,13 @@ export class ReconciliationService {
           [updated.transactionC.id],
         );
       }
+      if (updated.transactionD && updated.transactionD.status === 'UNMATCHED') {
+        await this.exceptionsService.createExceptionsForUnmatched(
+          orgId,
+          updated.runId,
+          [updated.transactionD.id],
+        );
+      }
     }
 
     return {
@@ -500,6 +556,7 @@ export class ReconciliationService {
       transactionA: this.mapTransactionToDto(updated.transactionA),
       transactionB: this.mapTransactionToDto(updated.transactionB),
       transactionC: this.mapTransactionToDto(updated.transactionC),
+      transactionD: this.mapTransactionToDto(updated.transactionD),
       discrepancyDetails: (updated.discrepancyDetails as any) || null,
     };
   }

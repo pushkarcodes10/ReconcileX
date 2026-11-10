@@ -58,14 +58,14 @@ export class ReconciliationMatchingConfigDto {
 
 export class CreateReconciliationRunDto {
   @ApiPropertyOptional({
-    description: 'Reconciliation run mode (TWO_SOURCE or THREE_SOURCE)',
-    example: 'THREE_SOURCE',
-    enum: ['TWO_SOURCE', 'THREE_SOURCE'],
+    description: 'Reconciliation run mode (TWO_SOURCE, THREE_SOURCE, or FOUR_SOURCE)',
+    example: 'FOUR_SOURCE',
+    enum: ['TWO_SOURCE', 'THREE_SOURCE', 'FOUR_SOURCE'],
     default: 'TWO_SOURCE',
   })
   @IsOptional()
   @IsString()
-  reconciliationType?: 'TWO_SOURCE' | 'THREE_SOURCE';
+  reconciliationType?: 'TWO_SOURCE' | 'THREE_SOURCE' | 'FOUR_SOURCE';
 
   @ApiProperty({
     description: 'UUID of the first data source (Source A)',
@@ -90,6 +90,14 @@ export class CreateReconciliationRunDto {
   @IsOptional()
   @IsUUID()
   sourceC?: string;
+
+  @ApiPropertyOptional({
+    description: 'UUID of the fourth data source (Source D) for four-source / screenshot reconciliation',
+    example: 'b8c8d7e6-3f2a-5b4c-9d3e-0f1a2b3c4d5e',
+  })
+  @IsOptional()
+  @IsUUID()
+  sourceD?: string;
 
   @ApiProperty({
     description: 'Inclusive start date for eligible transactions (YYYY-MM-DD or ISO 8601)',

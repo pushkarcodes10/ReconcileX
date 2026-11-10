@@ -16,12 +16,14 @@ export interface MatchWithTransactions extends Match {
   transactionA?: Transaction | null;
   transactionB?: Transaction | null;
   transactionC?: Transaction | null;
+  transactionD?: Transaction | null;
 }
 
 export interface ReconciliationRunWithSources extends ReconciliationRun {
   sourceA: DataSource;
   sourceB: DataSource;
   sourceC?: DataSource | null;
+  sourceD?: DataSource | null;
 }
 
 export interface IReconciliationRepository {
@@ -35,6 +37,7 @@ export interface IReconciliationRepository {
     sourceAId: string,
     sourceBId: string,
     sourceCId?: string,
+    sourceDId?: string,
   ): Promise<ReconciliationRun | null>;
   getNextDisplayId(orgId: string, dateStr: string): Promise<string>;
   findRuns(

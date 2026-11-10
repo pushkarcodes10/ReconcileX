@@ -37,6 +37,9 @@ export class ReconciliationRunItemDto {
   @ApiPropertyOptional({ description: 'Source C UUID' })
   sourceCId?: string | null;
 
+  @ApiPropertyOptional({ description: 'Source D UUID' })
+  sourceDId?: string | null;
+
   @ApiProperty({ description: 'Run processing status', enum: ReconciliationRunStatus })
   status!: string;
 
@@ -57,6 +60,9 @@ export class ReconciliationRunItemDto {
 
   @ApiPropertyOptional({ description: 'Total eligible transactions loaded from Source C' })
   totalSourceC?: number;
+
+  @ApiPropertyOptional({ description: 'Total eligible transactions loaded from Source D' })
+  totalSourceD?: number;
 
   @ApiProperty({ description: 'Number of exact matches found' })
   exactMatchCount!: number;
@@ -95,6 +101,9 @@ export class ReconciliationRunDetailDto extends ReconciliationRunItemDto {
 
   @ApiPropertyOptional({ description: 'Summary details of Data Source C' })
   sourceC?: DataSourceSummaryDto | null;
+
+  @ApiPropertyOptional({ description: 'Summary details of Data Source D' })
+  sourceD?: DataSourceSummaryDto | null;
 }
 
 export class MatchedTransactionDetailDto {
@@ -130,6 +139,12 @@ export class MatchedTransactionDetailDto {
 
   @ApiProperty({ description: 'Current transaction status' })
   status!: string;
+
+  @ApiPropertyOptional({ description: 'Source Screenshot File UUID if ingested from screenshot' })
+  screenshotFileId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Presigned preview URL of original transaction screenshot' })
+  screenshotPreviewUrl?: string | null;
 }
 
 export class MatchDetailDto {
@@ -153,6 +168,9 @@ export class MatchDetailDto {
 
   @ApiPropertyOptional({ description: 'Transaction C UUID' })
   transactionCId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Transaction D UUID' })
+  transactionDId?: string | null;
 
   @ApiProperty({ description: 'Match confidence classification', enum: MatchClassification })
   classification!: MatchClassification;
@@ -195,6 +213,9 @@ export class MatchDetailDto {
 
   @ApiPropertyOptional({ description: 'Details of Transaction C' })
   transactionC?: MatchedTransactionDetailDto | null;
+
+  @ApiPropertyOptional({ description: 'Details of Transaction D' })
+  transactionD?: MatchedTransactionDetailDto | null;
 }
 
 export class UnmatchedTransactionItemDto {
@@ -221,6 +242,12 @@ export class UnmatchedTransactionItemDto {
 
   @ApiProperty({ description: 'Current reconciliation status' })
   status!: string;
+
+  @ApiPropertyOptional({ description: 'Source Screenshot File UUID if ingested from screenshot' })
+  screenshotFileId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Presigned preview URL of original transaction screenshot' })
+  screenshotPreviewUrl?: string | null;
 }
 
 export interface PaginatedResponse<T> {

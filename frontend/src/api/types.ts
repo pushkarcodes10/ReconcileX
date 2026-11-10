@@ -61,7 +61,7 @@ export interface Invitation {
   inviteToken: string;
 }
 
-export type DataSourceType = 'INTERNAL_ORDERS' | 'PAYMENT_GATEWAY' | 'BANK' | 'OTHER';
+export type DataSourceType = 'INTERNAL_ORDERS' | 'PAYMENT_GATEWAY' | 'BANK' | 'SCREENSHOT' | 'OTHER';
 export type DataSourceStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
 export interface ColumnMapping {
@@ -157,6 +157,8 @@ export interface Transaction {
   externalTxnId?: string;
   merchantOrOrderId?: string;
   txnType?: string;
+  screenshotFileId?: string | null;
+  screenshotPreviewUrl?: string | null;
   metadata?: Record<string, any>;
   createdAt: string;
   updatedAt?: string;
@@ -164,7 +166,7 @@ export interface Transaction {
 
 export type ReconciliationRunStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
-export type ReconciliationType = 'TWO_SOURCE' | 'THREE_SOURCE';
+export type ReconciliationType = 'TWO_SOURCE' | 'THREE_SOURCE' | 'FOUR_SOURCE';
 
 export interface ReconciliationRunConfig {
   dateWindowDays?: number;
@@ -175,9 +177,11 @@ export interface ReconciliationRunConfig {
   sourceAId?: string;
   sourceBId?: string;
   sourceCId?: string;
+  sourceDId?: string;
   sourceAName?: string;
   sourceBName?: string;
   sourceCName?: string;
+  sourceDName?: string;
   [key: string]: any;
 }
 
@@ -189,6 +193,8 @@ export interface ReconciliationRun {
   sourceB: string;
   sourceC?: string | null;
   sourceCId?: string | null;
+  sourceD?: string | null;
+  sourceDId?: string | null;
   dateFrom: string;
   dateTo: string;
   status: ReconciliationRunStatus;
@@ -196,9 +202,11 @@ export interface ReconciliationRun {
   totalTransactionsA: number;
   totalTransactionsB: number;
   totalTransactionsC?: number;
+  totalTransactionsD?: number;
   totalSourceA?: number;
   totalSourceB?: number;
   totalSourceC?: number;
+  totalSourceD?: number;
   exactMatchesCount: number;
   potentialMatchesCount: number;
   unmatchedCount: number;
@@ -212,6 +220,7 @@ export interface ReconciliationRun {
   sourceAName?: string;
   sourceBName?: string;
   sourceCName?: string | null;
+  sourceDName?: string | null;
 }
 
 export type MatchClassification =
@@ -259,6 +268,7 @@ export interface MatchRecord {
   transactionA?: Transaction | null;
   transactionB?: Transaction | null;
   transactionC?: Transaction | null;
+  transactionD?: Transaction | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -301,6 +311,92 @@ export interface ExceptionRecord {
   transaction?: Transaction;
   createdAt: string;
   updatedAt?: string;
+}
+
+export type ScreenshotDatasetStatus = 'PROCESSING' | 'REVIEW_REQUIRED' | 'READY' | 'FAILED';
+export type ScreenshotFileStatus = 'UPLOADED' | 'PROCESSING' | 'EXTRACTED' | 'FAILED';
+
+export interface ScreenshotFile {
+  id: string;
+  organizationId: string;
+  datasetId: string;
+  storageKey: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSize: number;
+  contentSha256: string;
+  status: ScreenshotFileStatus;
+  rawOcrText?: string | null;
+  extractedCount: number;
+  previewUrl?: string | null;
+  createdAt: string;
+}
+
+export interface ScreenshotExtractedRecord {
+  id: string;
+  organizationId: string;
+  datasetId: string;
+  screenshotFileId: string;
+  externalId: string;
+  amount: number;
+  amountMinor: number;
+  currency: string;
+  transactionDate: string;
+  reference?: string | null;
+  externalTxnId?: string | null;
+  merchantOrOrderId?: string | null;
+  txnType?: string | null;
+  paymentMethod?: string | null;
+  senderReceiver?: string | null;
+  description?: string | null;
+  confidenceScore: number;
+  fieldConfidences?: Record<string, number> | null;
+  isDuplicate: boolean;
+  isLowConfidence: boolean;
+  validationErrors?: string[] | null;
+  userCorrected: boolean;
+  userCorrectionHistory?: Array<Record<string, unknown>> | null;
+  transactionId?: string | null;
+  screenshotPreviewUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScreenshotDatasetDetail {
+  id: string;
+  organizationId: string;
+  dataSourceId?: string | null;
+  name: string;
+  status: ScreenshotDatasetStatus;
+  totalFiles: number;
+  totalRecords: number;
+  confirmedRecords: number;
+  metadata?: Record<string, unknown> | null;
+  confirmedById?: string | null;
+  confirmedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  files?: ScreenshotFile[];
+  records?: ScreenshotExtractedRecord[];
+}
+
+export interface UpdateExtractedRecordPayload {
+  externalId?: string;
+  amount?: number;
+  currency?: string;
+  transactionDate?: string;
+  reference?: string;
+  externalTxnId?: string;
+  merchantOrOrderId?: string;
+  txnType?: string;
+  paymentMethod?: string;
+  senderReceiver?: string;
+  description?: string;
+}
+
+export interface ConfirmDatasetPayload {
+  dataSourceName?: string;
+  dataSourceId?: string;
 }
 
 export interface DashboardSummary {

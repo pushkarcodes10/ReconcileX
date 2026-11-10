@@ -74,4 +74,103 @@ describe('Screenshot API Integration', () => {
     expect(res.status).toBe('UNMATCHED');
     expect(res.amountMinor).toBe(149900);
   });
+
+  it('createDataset sends batch files and metadata to /orgs/:orgId/screenshot/datasets', async () => {
+    let capturedUrl = '';
+    let capturedBody: any = null;
+
+    vi.spyOn(apiClient, 'post').mockImplementation((url, body) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return Promise.resolve({
+        id: 'dataset-123',
+        organizationId: 'org-uuid-123',
+        name: 'UPI Inward September',
+        status: 'REVIEW_REQUIRED',
+        totalFiles: 2,
+        totalRecords: 2,
+        confirmedRecords: 0,
+        createdAt: '2026-11-10T12:00:00Z',
+        files: [],
+        records: [],
+      }) as any;
+    });
+
+    const file1 = new File(['img1'], 'rec1.png', { type: 'image/png' });
+    const file2 = new File(['img2'], 'rec2.jpg', { type: 'image/jpeg' });
+    const dataset = await screenshotApi.createDataset('org-uuid-123', 'UPI Inward September', [file1, file2], 'ds-source-1');
+
+    expect(capturedUrl).toBe('/orgs/org-uuid-123/screenshot/datasets');
+    expect(capturedBody).toBeInstanceOf(FormData);
+    expect(capturedBody.get('name')).toBe('UPI Inward September');
+    expect(capturedBody.get('dataSourceId')).toBe('ds-source-1');
+    expect(capturedBody.getAll('files')).toHaveLength(2);
+    expect(dataset.status).toBe('REVIEW_REQUIRED');
+  });
+
+  it('getFilePreviewUrl requests presigned url from /orgs/:orgId/screenshot/files/:fileId/preview', async () => {
+    let capturedUrl = '';
+
+    vi.spyOn(apiClient, 'get').mockImplementation((url) => {
+      capturedUrl = url;
+      return Promise.resolve({
+        previewUrl: 'https://minio.local/reconcilex-private/orgs/org-123/receipt.png?X-Amz-Signature=abc',
+        expiresInSeconds: 3600,
+      }) as any;
+    });
+
+    const res = await screenshotApi.getFilePreviewUrl('org-uuid-123', 'file-456');
+
+    expect(capturedUrl).toBe('/orgs/org-uuid-123/screenshot/files/file-456/preview');
+    expect(res.previewUrl).toContain('X-Amz-Signature=abc');
+    expect(res.expiresInSeconds).toBe(3600);
+  });
+
+  it('updateExtractedRecord sends patch payload to /orgs/:orgId/screenshot/records/:recordId', async () => {
+    let capturedUrl = '';
+    let capturedBody: any = null;
+
+    vi.spyOn(apiClient, 'patch').mockImplementation((url, body) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return Promise.resolve({
+        id: 'record-789',
+        amount: 2500,
+        userCorrected: true,
+      }) as any;
+    });
+
+    const res = await screenshotApi.updateExtractedRecord('org-uuid-123', 'record-789', {
+      amount: 2500,
+      reference: 'TXN-CORRECTED',
+    });
+
+    expect(capturedUrl).toBe('/orgs/org-uuid-123/screenshot/records/record-789');
+    expect(capturedBody).toEqual({ amount: 2500, reference: 'TXN-CORRECTED' });
+    expect(res.userCorrected).toBe(true);
+  });
+
+  it('confirmDataset sends confirmation and target name to /confirm endpoint', async () => {
+    let capturedUrl = '';
+    let capturedBody: any = null;
+
+    vi.spyOn(apiClient, 'post').mockImplementation((url, body) => {
+      capturedUrl = url;
+      capturedBody = body;
+      return Promise.resolve({
+        id: 'dataset-123',
+        status: 'READY',
+        confirmedRecords: 5,
+      }) as any;
+    });
+
+    const res = await screenshotApi.confirmDataset('org-uuid-123', 'dataset-123', {
+      dataSourceName: 'Verified Receipt Dataset',
+    });
+
+    expect(capturedUrl).toBe('/orgs/org-uuid-123/screenshot/datasets/dataset-123/confirm');
+    expect(capturedBody).toEqual({ dataSourceName: 'Verified Receipt Dataset' });
+    expect(res.status).toBe('READY');
+    expect(res.confirmedRecords).toBe(5);
+  });
 });

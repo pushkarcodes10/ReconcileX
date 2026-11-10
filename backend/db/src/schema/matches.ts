@@ -58,6 +58,9 @@ export const matches = pgTable(
     transactionCId: uuid('transaction_c_id').references(() => transactions.id, {
       onDelete: 'cascade',
     }),
+    transactionDId: uuid('transaction_d_id').references(() => transactions.id, {
+      onDelete: 'cascade',
+    }),
     classification: varchar('classification', { length: 50 }).notNull(),
     score: integer('score').notNull(),
     reasons: jsonb('reasons').$type<Record<string, unknown>>().notNull(),
@@ -80,10 +83,14 @@ export const matches = pgTable(
     uniqueIndex('matches_run_txn_c_active_idx')
       .on(table.runId, table.transactionCId)
       .where(sql`status != 'REJECTED' AND transaction_c_id IS NOT NULL`),
+    uniqueIndex('matches_run_txn_d_active_idx')
+      .on(table.runId, table.transactionDId)
+      .where(sql`status != 'REJECTED' AND transaction_d_id IS NOT NULL`),
     index('matches_org_run_idx').on(table.organizationId, table.runId),
     index('matches_org_status_idx').on(table.organizationId, table.status),
     index('matches_org_classification_idx').on(table.organizationId, table.classification),
     index('matches_org_txn_c_idx').on(table.organizationId, table.transactionCId),
+    index('matches_org_txn_d_idx').on(table.organizationId, table.transactionDId),
   ],
 );
 

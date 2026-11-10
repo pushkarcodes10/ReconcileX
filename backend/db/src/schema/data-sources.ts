@@ -15,6 +15,7 @@ export const DataSourceType = {
   INTERNAL_ORDERS: 'INTERNAL_ORDERS',
   PAYMENT_GATEWAY: 'PAYMENT_GATEWAY',
   BANK: 'BANK',
+  SCREENSHOT: 'SCREENSHOT',
   OTHER: 'OTHER',
 } as const;
 

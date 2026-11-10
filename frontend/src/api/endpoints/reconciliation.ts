@@ -12,10 +12,11 @@ import { normalizePagination } from '../pagination';
 import { generateIdempotencyKey } from '../../shared/lib/idempotency';
 
 export interface CreateReconciliationRunDto {
-  reconciliationType?: 'TWO_SOURCE' | 'THREE_SOURCE';
+  reconciliationType?: 'TWO_SOURCE' | 'THREE_SOURCE' | 'FOUR_SOURCE';
   sourceA: string;
   sourceB: string;
   sourceC?: string;
+  sourceD?: string;
   dateFrom: string;
   dateTo: string;
   config?: {

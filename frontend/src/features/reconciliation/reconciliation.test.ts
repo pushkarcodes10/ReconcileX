@@ -72,4 +72,50 @@ describe('Reconciliation API Integration', () => {
     expect(res.run.reconciliationType).toBe('THREE_SOURCE');
     expect(res.run.fullyMatchedCount).toBe(5);
   });
+
+  it('supports four-source (4-way omni) run creation parameters in DTO', async () => {
+    let capturedBody: any = null;
+
+    vi.spyOn(apiClient, 'post').mockImplementation((_url, body) => {
+      capturedBody = body;
+      return Promise.resolve({
+        jobId: 'job-recon-4',
+        runId: 'run-recon-4',
+        status: 'COMPLETED',
+        run: {
+          id: 'run-recon-4',
+          reconciliationType: 'FOUR_SOURCE',
+          sourceA: 'ds-orders',
+          sourceB: 'ds-gateway',
+          sourceC: 'ds-bank',
+          sourceD: 'ds-screenshot-feed',
+          fullyMatchedCount: 8,
+          partiallyMatchedCount: 3,
+          discrepancyCount: 1,
+        } as any,
+      });
+    });
+
+    const res = await reconciliationApi.createRun('org-123', {
+      reconciliationType: 'FOUR_SOURCE',
+      sourceA: 'ds-orders',
+      sourceB: 'ds-gateway',
+      sourceC: 'ds-bank',
+      sourceD: 'ds-screenshot-feed',
+      dateFrom: '2026-09-01',
+      dateTo: '2026-09-30',
+      config: {
+        dateToleranceDays: 3,
+      },
+    });
+
+    expect(capturedBody.reconciliationType).toBe('FOUR_SOURCE');
+    expect(capturedBody.sourceA).toBe('ds-orders');
+    expect(capturedBody.sourceB).toBe('ds-gateway');
+    expect(capturedBody.sourceC).toBe('ds-bank');
+    expect(capturedBody.sourceD).toBe('ds-screenshot-feed');
+    expect(res.run.reconciliationType).toBe('FOUR_SOURCE');
+    expect(res.run.sourceD).toBe('ds-screenshot-feed');
+    expect(res.run.fullyMatchedCount).toBe(8);
+  });
 });

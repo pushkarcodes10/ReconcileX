@@ -7,7 +7,14 @@ import {
   ReconciliationRun,
   Transaction,
 } from '@reconcilex/db';
-import { MatchTransaction, matchTwoSets, matchThreeSets, MatchingConfig } from '@reconcilex/matching';
+import {
+  MatchTransaction,
+  matchTwoSets,
+  matchThreeSets,
+  matchNSets,
+  MatchingConfig,
+  SourceInput,
+} from '@reconcilex/matching';
 import { AuditService } from '../../audit/audit.service';
 import { ExceptionsService } from '../../exceptions/exceptions.service';
 import { JobsService } from '../../jobs/jobs.service';
@@ -82,7 +89,8 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
         rawDateTo.includes('T') ? rawDateTo : `${rawDateTo}T23:59:59.999Z`,
       );
 
-      const isThreeSource = run.reconciliationType === 'THREE_SOURCE' || !!run.sourceCId;
+      const isFourSource = run.reconciliationType === 'FOUR_SOURCE' || !!run.sourceDId;
+      const isThreeSource = !isFourSource && (run.reconciliationType === 'THREE_SOURCE' || !!run.sourceCId);
 
       // 3. Fetch eligible transactions (not already MATCHED)
       const txnsA = await this.transactionsRepo.findEligibleForReconciliation(
@@ -99,10 +107,19 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
         dateTo,
       );
 
-      const txnsC = isThreeSource && run.sourceCId
+      const txnsC = (isThreeSource || isFourSource) && run.sourceCId
         ? await this.transactionsRepo.findEligibleForReconciliation(
             organizationId,
             run.sourceCId,
+            dateFrom,
+            dateTo,
+          )
+        : [];
+
+      const txnsD = isFourSource && run.sourceDId
+        ? await this.transactionsRepo.findEligibleForReconciliation(
+            organizationId,
+            run.sourceDId,
             dateFrom,
             dateTo,
           )
@@ -124,6 +141,7 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
       const setA = txnsA.map(mapToMatch);
       const setB = txnsB.map(mapToMatch);
       const setC = txnsC.map(mapToMatch);
+      const setD = txnsD.map(mapToMatch);
 
       const matchConfig =
         options?.matchingConfig || (configObj.matchingConfig as MatchingConfig | undefined);
@@ -140,7 +158,69 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
       let partiallyMatchedCount = 0;
       let discrepancyCount = 0;
 
-      if (isThreeSource) {
+      if (isFourSource) {
+        // Execute generalized multi-source / four-source engine
+        const sourcesInput: SourceInput[] = [
+          { id: run.sourceAId, name: 'Source A', transactions: setA },
+          { id: run.sourceBId, name: 'Source B', transactions: setB },
+          { id: run.sourceCId || 'src-c', name: 'Source C', transactions: setC },
+          { id: run.sourceDId!, name: 'Source D', transactions: setD },
+        ];
+
+        const nResult = matchNSets(sourcesInput, matchConfig);
+
+        fullyMatchedCount = nResult.statistics.fullyMatchedCount;
+        partiallyMatchedCount = nResult.statistics.partiallyMatchedCount;
+        discrepancyCount =
+          nResult.statistics.amountMismatchCount +
+          nResult.statistics.dateMismatchCount;
+        potentialCount =
+          nResult.statistics.potentialMatchCount +
+          partiallyMatchedCount +
+          discrepancyCount;
+        exactCount = fullyMatchedCount;
+
+        for (const g of nResult.matchGroups) {
+          const isConfirmed = g.classification === 'FULLY_MATCHED';
+          const participatingIds = [
+            g.transactionAId,
+            g.transactionBId,
+            g.transactionCId,
+            g.transactionDId,
+          ].filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+          if (isConfirmed) {
+            exactTxnIds.push(...participatingIds);
+          } else {
+            potentialTxnIds.push(...participatingIds);
+          }
+
+          newMatches.push({
+            organizationId,
+            runId,
+            reconciliationType: 'FOUR_SOURCE',
+            transactionAId: g.transactionAId ?? null,
+            transactionBId: g.transactionBId ?? null,
+            transactionCId: g.transactionCId ?? null,
+            transactionDId: g.transactionDId ?? null,
+            classification: g.classification,
+            score: g.score,
+            reasons: {
+              reasonCodes: g.reasons,
+              explanation: g.explanation,
+              sourceStatus: g.sourceStatusBySourceId,
+            },
+            discrepancyDetails: g.discrepancies.length > 0 ? g.discrepancies : null,
+            status: isConfirmed ? 'CONFIRMED' : 'PENDING',
+            confirmedBy: isConfirmed ? (run.createdBy ?? null) : null,
+            confirmedAt: isConfirmed ? now : null,
+          });
+        }
+
+        unmatchedIds = Object.values(nResult.unmatchedBySourceId).flatMap((txns) =>
+          txns.map((t) => t.id),
+        );
+      } else if (isThreeSource) {
         // Execute three-source matching engine
         const threeResult = matchThreeSets(setA, setB, setC, matchConfig);
 
@@ -283,6 +363,7 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
         totalSourceA: txnsA.length,
         totalSourceB: txnsB.length,
         totalSourceC: txnsC.length,
+        totalSourceD: txnsD.length,
         exactMatchCount: exactCount,
         potentialMatchCount: potentialCount,
         fullyMatchedCount,
@@ -303,8 +384,8 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
           );
         }
 
-        // For 3-source discrepancy or partial matches, create dedicated discrepancy exceptions
-        if (isThreeSource && createdMatches.length > 0) {
+        // For 3-source and 4-source discrepancy or partial matches, create dedicated discrepancy exceptions
+        if ((isThreeSource || isFourSource) && createdMatches.length > 0) {
           for (const m of createdMatches) {
             if (
               m.classification === 'PARTIALLY_MATCHED' ||
@@ -312,7 +393,8 @@ export class SyncReconciliationJobService implements IReconciliationJobService {
               m.classification === 'DATE_MISMATCH' ||
               m.classification === 'REFERENCE_MISMATCH'
             ) {
-              const primaryTxnId = m.transactionAId || m.transactionBId || m.transactionCId;
+              const primaryTxnId =
+                m.transactionAId || m.transactionBId || m.transactionCId || m.transactionDId;
               await this.exceptionsService.createExceptionForDiscrepancy(
                 organizationId,
                 runId,

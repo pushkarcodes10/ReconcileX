@@ -47,6 +47,7 @@ export const reconciliationRuns = pgTable(
       .notNull()
       .references(() => dataSources.id, { onDelete: 'restrict' }),
     sourceCId: uuid('source_c_id').references(() => dataSources.id, { onDelete: 'restrict' }),
+    sourceDId: uuid('source_d_id').references(() => dataSources.id, { onDelete: 'restrict' }),
     status: varchar('status', { length: 50 }).default('PENDING').notNull(),
     startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
@@ -54,6 +55,7 @@ export const reconciliationRuns = pgTable(
     totalSourceA: integer('total_source_a').default(0).notNull(),
     totalSourceB: integer('total_source_b').default(0).notNull(),
     totalSourceC: integer('total_source_c').default(0).notNull(),
+    totalSourceD: integer('total_source_d').default(0).notNull(),
     exactMatchCount: integer('exact_match_count').default(0).notNull(),
     potentialMatchCount: integer('potential_match_count').default(0).notNull(),
     fullyMatchedCount: integer('fully_matched_count').default(0).notNull(),
@@ -82,6 +84,7 @@ export const reconciliationRuns = pgTable(
     ),
     index('reconciliation_runs_org_status_idx').on(table.organizationId, table.status),
     index('reconciliation_runs_org_created_idx').on(table.organizationId, table.createdAt),
+    index('reconciliation_runs_org_source_d_idx').on(table.organizationId, table.sourceDId),
     index('reconciliation_runs_org_idempotency_idx').on(table.organizationId, table.idempotencyKey),
   ],
 );

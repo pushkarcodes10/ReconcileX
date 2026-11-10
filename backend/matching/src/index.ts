@@ -5,4 +5,5 @@ export * from './classify';
 export * from './scoring';
 export * from './match-two-sets';
 export * from './match-three-sets';
+export * from './match-n-sets';
 export * from './utils/date-difference';

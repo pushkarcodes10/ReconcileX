@@ -21,7 +21,9 @@ import {
   CheckIcon,
   XIcon,
   LayersIcon,
+  CameraIcon,
 } from '../../shared/components/icons';
+import { screenshotApi } from '../../api/endpoints/screenshot';
 
 type ThreeWayTab = 'all' | 'fully_matched' | 'partially_matched' | 'discrepancy' | 'potential' | 'unmatched';
 type TwoWayTab = 'exact' | 'potential' | 'unmatched';
@@ -42,8 +44,11 @@ export const ReconciliationDetailPage: React.FC = () => {
     },
   });
 
+  const isFourSource =
+    run?.reconciliationType === 'FOUR_SOURCE' || !!run?.sourceDId || !!run?.sourceD;
   const isThreeSource =
-    run?.reconciliationType === 'THREE_SOURCE' || !!run?.sourceCId || !!run?.sourceC;
+    !isFourSource && (run?.reconciliationType === 'THREE_SOURCE' || !!run?.sourceCId || !!run?.sourceC);
+  const isMultiSource = isThreeSource || isFourSource;
 
   const [active3WayTab, setActive3WayTab] = useState<ThreeWayTab>('all');
   const [active2WayTab, setActive2WayTab] = useState<TwoWayTab>('exact');
@@ -53,9 +58,24 @@ export const ReconciliationDetailPage: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Screenshot preview modal state
+  const [previewModalFile, setPreviewModalFile] = useState<{ url: string; filename: string } | null>(null);
+
+  const handleViewScreenshot = async (fileId: string, filename?: string) => {
+    try {
+      const res = await screenshotApi.getFilePreviewUrl(orgId!, fileId);
+      setPreviewModalFile({
+        url: res.previewUrl,
+        filename: filename ? `Screenshot (${filename})` : `Receipt #${fileId.slice(0, 8)}`,
+      });
+    } catch (err: any) {
+      setActionError(err?.message || 'Failed to fetch screenshot preview URL.');
+    }
+  };
+
   // 2. Fetch Matches according to selected tab
   const getClassificationForQuery = (): any => {
-    if (isThreeSource) {
+    if (isMultiSource) {
       if (active3WayTab === 'fully_matched') return 'FULLY_MATCHED';
       if (active3WayTab === 'partially_matched') return 'PARTIALLY_MATCHED';
       if (active3WayTab === 'discrepancy') return undefined; // Filter in UI for discrepancies (amount/date/reference)
@@ -68,7 +88,7 @@ export const ReconciliationDetailPage: React.FC = () => {
     }
   };
 
-  const isMatchesTab = isThreeSource
+  const isMatchesTab = isMultiSource
     ? active3WayTab !== 'unmatched'
     : active2WayTab !== 'unmatched';
 
@@ -79,7 +99,7 @@ export const ReconciliationDetailPage: React.FC = () => {
       'reconciliation-matches',
       orgId,
       runId,
-      isThreeSource ? active3WayTab : active2WayTab,
+      isMultiSource ? active3WayTab : active2WayTab,
       classificationQuery,
       matchesPage,
     ],
@@ -141,7 +161,7 @@ export const ReconciliationDetailPage: React.FC = () => {
 
   // Filter discrepancy items client-side if tab is 'discrepancy'
   const displayedMatches =
-    isThreeSource && active3WayTab === 'discrepancy'
+    isMultiSource && active3WayTab === 'discrepancy'
       ? matchesData?.items.filter(
           (m) =>
             m.classification === 'AMOUNT_MISMATCH' ||
@@ -171,7 +191,23 @@ export const ReconciliationDetailPage: React.FC = () => {
               <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>
                 Reconciliation Run #{run.id.slice(0, 8)}
               </h1>
-              {isThreeSource ? (
+              {isFourSource ? (
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px',
+                    backgroundColor: '#F3E8FF',
+                    color: '#6B21A8',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                  }}
+                >
+                  <LayersIcon size={13} /> Four-Source (4-Way Omni)
+                </span>
+              ) : isThreeSource ? (
                 <span
                   style={{
                     fontSize: '0.75rem',
@@ -212,11 +248,19 @@ export const ReconciliationDetailPage: React.FC = () => {
               <span style={{ color: 'var(--rx-text-primary)', fontWeight: 600 }}>
                 {run.sourceBName || 'Source B'}
               </span>
-              {isThreeSource && (
+              {isMultiSource && (
                 <>
                   {' '}vs{' '}
                   <span style={{ color: 'var(--rx-text-primary)', fontWeight: 600 }}>
                     {run.sourceCName || 'Source C (Bank Statement)'}
+                  </span>
+                </>
+              )}
+              {isFourSource && (
+                <>
+                  {' '}vs{' '}
+                  <span style={{ color: 'var(--rx-text-primary)', fontWeight: 600 }}>
+                    {run.sourceDName || 'Source D (Screenshot / Feed)'}
                   </span>
                 </>
               )}
@@ -254,14 +298,16 @@ export const ReconciliationDetailPage: React.FC = () => {
       )}
 
       {/* Bento Counters Breakdown */}
-      {isThreeSource ? (
+      {isMultiSource ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem' }}>
           <div className="rx-bento-card rx-bento-sage" style={{ padding: '1.25rem' }}>
             <div className="rx-bento-label" style={{ color: '#1A2917' }}>Fully Matched</div>
             <div className="rx-bento-val" style={{ color: '#0F290D' }}>
               {run.fullyMatchedCount ?? run.exactMatchesCount ?? run.exactMatchCount ?? 0}
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#2B4228' }}>All 3 sources confirmed</div>
+            <div style={{ fontSize: '0.75rem', color: '#2B4228' }}>
+              All {isFourSource ? '4' : '3'} sources confirmed
+            </div>
           </div>
 
           <div className="rx-bento-card rx-bento-yellow" style={{ padding: '1.25rem' }}>
@@ -269,7 +315,9 @@ export const ReconciliationDetailPage: React.FC = () => {
             <div className="rx-bento-val" style={{ color: '#383204' }}>
               {run.partiallyMatchedCount ?? 0}
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#595009' }}>2 matched, 1 missing</div>
+            <div style={{ fontSize: '0.75rem', color: '#595009' }}>
+              {isFourSource ? 'Multi-way match with missing feed' : '2 matched, 1 missing'}
+            </div>
           </div>
 
           <div className="rx-bento-card rx-bento-rose" style={{ padding: '1.25rem' }}>
@@ -302,6 +350,9 @@ export const ReconciliationDetailPage: React.FC = () => {
               <div>A: <strong style={{ color: 'var(--rx-lime)' }}>{run.totalTransactionsA ?? run.totalSourceA ?? 0}</strong></div>
               <div>B: <strong style={{ color: '#FFFFFF' }}>{run.totalTransactionsB ?? run.totalSourceB ?? 0}</strong></div>
               <div>C: <strong style={{ color: 'var(--rx-lime)' }}>{run.totalTransactionsC ?? run.totalSourceC ?? 0}</strong></div>
+              {isFourSource && (
+                <div>D: <strong style={{ color: '#FCD34D' }}>{run.totalTransactionsD ?? run.totalSourceD ?? 0}</strong></div>
+              )}
             </div>
           </div>
         </div>
@@ -340,7 +391,7 @@ export const ReconciliationDetailPage: React.FC = () => {
       )}
 
       {/* Styled Tabs */}
-      {isThreeSource ? (
+      {isMultiSource ? (
         <div className="rx-tabs">
           <button
             onClick={() => {
@@ -492,11 +543,11 @@ export const ReconciliationDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* THREE-SOURCE MATCH EXPLORER VIEW */}
-      {isThreeSource && isMatchesTab && (
+      {/* MULTI-SOURCE MATCH EXPLORER VIEW */}
+      {isMultiSource && isMatchesTab && (
         <div>
           {matchesLoading ? (
-            <LoadingState message="Loading three-source matches..." />
+            <LoadingState message="Loading multi-source matches..." />
           ) : displayedMatches.length === 0 ? (
             <EmptyState
               title="No Match Records Found"
@@ -513,6 +564,7 @@ export const ReconciliationDetailPage: React.FC = () => {
                   onConfirm={(id) => confirmMutation.mutate(id)}
                   onReject={(id) => setRejectingMatchId(id)}
                   isConfirming={confirmMutation.isPending}
+                  onViewScreenshot={handleViewScreenshot}
                 />
               ))}
 
@@ -529,7 +581,7 @@ export const ReconciliationDetailPage: React.FC = () => {
       )}
 
       {/* TWO-SOURCE MATCH VIEW */}
-      {!isThreeSource && isMatchesTab && (
+      {!isMultiSource && isMatchesTab && (
         <div>
           {matchesLoading ? (
             <LoadingState message="Loading matches..." />
@@ -649,7 +701,31 @@ export const ReconciliationDetailPage: React.FC = () => {
                 <tbody>
                   {unmatchedData.items.map((txn) => (
                     <tr key={txn.id}>
-                      <td><code className="rx-col-code">{txn.externalId}</code></td>
+                      <td>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                          <code className="rx-col-code">{txn.externalId}</code>
+                          {txn.screenshotFileId && (
+                            <button
+                              type="button"
+                              onClick={() => handleViewScreenshot(txn.screenshotFileId!, txn.externalId)}
+                              className="rx-btn rx-btn-secondary rx-btn-xs"
+                              style={{
+                                padding: '0.15rem 0.45rem',
+                                fontSize: '0.72rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                backgroundColor: '#EFF6FF',
+                                borderColor: '#BFDBFE',
+                                color: '#1D4ED8',
+                              }}
+                              title="View original uploaded screenshot/receipt"
+                            >
+                              <CameraIcon size={12} /> Receipt
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="rx-col-amount" style={{ color: 'var(--rx-text-primary)' }}>
                         {formatAmountMinor(txn.amountMinor, txn.currency)}
                       </td>
@@ -682,12 +758,68 @@ export const ReconciliationDetailPage: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* SCREENSHOT PREVIEW MODAL */}
+      {previewModalFile && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: '1.5rem',
+          }}
+          onClick={() => setPreviewModalFile(null)}
+        >
+          <div
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              backgroundColor: '#1E293B',
+              borderRadius: 'var(--rx-radius-lg)',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: '#F8FAFC' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{previewModalFile.filename}</span>
+              <button
+                type="button"
+                onClick={() => setPreviewModalFile(null)}
+                style={{ background: 'none', border: 'none', color: '#F8FAFC', cursor: 'pointer' }}
+              >
+                <XIcon size={20} />
+              </button>
+            </div>
+            <img
+              src={previewModalFile.url}
+              alt="Screenshot Preview"
+              style={{
+                maxWidth: '85vw',
+                maxHeight: '80vh',
+                objectFit: 'contain',
+                borderRadius: 'var(--rx-radius-md)',
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 // -----------------------------------------------------------------------------------------
-// Subcomponent: ThreeSourceMatchCard (Match Explorer 3-way Comparative Inspection)
+// Subcomponent: ThreeSourceMatchCard (Match Explorer Multi-Source Comparative Inspection)
 // -----------------------------------------------------------------------------------------
 interface ThreeSourceMatchCardProps {
   match: MatchRecord;
@@ -696,6 +828,7 @@ interface ThreeSourceMatchCardProps {
   onConfirm: (id: string) => void;
   onReject: (id: string) => void;
   isConfirming: boolean;
+  onViewScreenshot?: (fileId: string, filename?: string) => void;
 }
 
 const ThreeSourceMatchCard: React.FC<ThreeSourceMatchCardProps> = ({
@@ -705,8 +838,22 @@ const ThreeSourceMatchCard: React.FC<ThreeSourceMatchCardProps> = ({
   onConfirm,
   onReject,
   isConfirming,
+  onViewScreenshot,
 }) => {
-  const { classification, score, status, transactionA, transactionB, transactionC, discrepancyDetails, reasons } = match;
+  const isFourSource =
+    run.reconciliationType === 'FOUR_SOURCE' || !!run.sourceDId || !!match.transactionD;
+
+  const {
+    classification,
+    score,
+    status,
+    transactionA,
+    transactionB,
+    transactionC,
+    transactionD,
+    discrepancyDetails,
+    reasons,
+  } = match;
 
   const isAmountMismatch =
     classification === 'AMOUNT_MISMATCH' ||
@@ -715,11 +862,38 @@ const ThreeSourceMatchCard: React.FC<ThreeSourceMatchCardProps> = ({
   const isMissingSource =
     classification === 'PARTIALLY_MATCHED' ||
     discrepancyDetails?.some((d) => d.type === 'MISSING_SOURCE') ||
-    !transactionC;
+    !transactionC ||
+    (isFourSource && !transactionD);
 
   const isDateMismatch =
     classification === 'DATE_MISMATCH' ||
     discrepancyDetails?.some((d) => d.type === 'DATE' || d.type === 'DATE_MISMATCH');
+
+  // Helper to render screenshot badge if transaction originated from a screenshot file
+  const renderScreenshotBadge = (txn?: any) => {
+    if (!txn?.screenshotFileId || !onViewScreenshot) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => onViewScreenshot(txn.screenshotFileId, txn.externalId)}
+        className="rx-btn rx-btn-secondary rx-btn-xs"
+        style={{
+          marginLeft: '0.35rem',
+          padding: '0.12rem 0.4rem',
+          fontSize: '0.7rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.2rem',
+          backgroundColor: '#EFF6FF',
+          borderColor: '#BFDBFE',
+          color: '#1D4ED8',
+        }}
+        title="View original uploaded screenshot"
+      >
+        <CameraIcon size={11} /> Receipt
+      </button>
+    );
+  };
 
   // Badge styling according to classification
   const getClassificationBadge = () => {
@@ -733,7 +907,7 @@ const ThreeSourceMatchCard: React.FC<ThreeSourceMatchCardProps> = ({
       case 'PARTIALLY_MATCHED':
         return (
           <span style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: '0.25rem 0.65rem', borderRadius: '999px', fontWeight: 800, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            ▲ PARTIALLY MATCHED (1 MISSING)
+            ▲ PARTIALLY MATCHED
           </span>
         );
       case 'AMOUNT_MISMATCH':
@@ -838,21 +1012,26 @@ const ThreeSourceMatchCard: React.FC<ThreeSourceMatchCardProps> = ({
         </div>
       )}
 
-      {/* 3-Source Comparative Grid */}
+      {/* Multi-Source Comparative Grid */}
       <div style={{ overflowX: 'auto' }}>
         <table className="rx-table" style={{ fontSize: '0.85rem', width: '100%' }}>
           <thead>
             <tr style={{ backgroundColor: 'var(--rx-surface-subtle)' }}>
-              <th style={{ width: '160px' }}>Attribute</th>
-              <th style={{ width: '28%' }}>
-                Source A: {run.sourceAName || 'Internal Orders'}
+              <th style={{ width: isFourSource ? '130px' : '160px' }}>Attribute</th>
+              <th style={{ width: isFourSource ? '21%' : '28%' }}>
+                Source A: {run.sourceAName || 'Source A'}
               </th>
-              <th style={{ width: '28%' }}>
-                Source B: {run.sourceBName || 'Payment Gateway'}
+              <th style={{ width: isFourSource ? '21%' : '28%' }}>
+                Source B: {run.sourceBName || 'Source B'}
               </th>
-              <th style={{ width: '28%' }}>
-                Source C: {run.sourceCName || 'Bank Statement'}
+              <th style={{ width: isFourSource ? '21%' : '28%' }}>
+                Source C: {run.sourceCName || 'Source C'}
               </th>
+              {isFourSource && (
+                <th style={{ width: '21%' }}>
+                  Source D: {run.sourceDName || 'Source D (Feed / Screenshot)'}
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -860,26 +1039,51 @@ const ThreeSourceMatchCard: React.FC<ThreeSourceMatchCardProps> = ({
             <tr>
               <td style={{ fontWeight: 700, color: 'var(--rx-text-secondary)' }}>External ID</td>
               <td>
-                <code className="rx-col-code" style={{ fontWeight: 700 }}>
-                  {transactionA?.externalId || '—'}
-                </code>
+                <div style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <code className="rx-col-code" style={{ fontWeight: 700 }}>
+                    {transactionA?.externalId || '—'}
+                  </code>
+                  {renderScreenshotBadge(transactionA)}
+                </div>
               </td>
               <td>
-                <code className="rx-col-code" style={{ fontWeight: 700 }}>
-                  {transactionB?.externalId || '—'}
-                </code>
+                <div style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <code className="rx-col-code" style={{ fontWeight: 700 }}>
+                    {transactionB?.externalId || '—'}
+                  </code>
+                  {renderScreenshotBadge(transactionB)}
+                </div>
               </td>
               <td>
                 {transactionC ? (
-                  <code className="rx-col-code" style={{ fontWeight: 700 }}>
-                    {transactionC.externalId}
-                  </code>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <code className="rx-col-code" style={{ fontWeight: 700 }}>
+                      {transactionC.externalId}
+                    </code>
+                    {renderScreenshotBadge(transactionC)}
+                  </div>
                 ) : (
                   <span style={{ color: '#DC2626', fontWeight: 700, fontSize: '0.78rem' }}>
-                    ✕ Record Missing in Bank Feed
+                    ✕ Record Missing in Feed C
                   </span>
                 )}
               </td>
+              {isFourSource && (
+                <td>
+                  {transactionD ? (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <code className="rx-col-code" style={{ fontWeight: 700 }}>
+                        {transactionD.externalId}
+                      </code>
+                      {renderScreenshotBadge(transactionD)}
+                    </div>
+                  ) : (
+                    <span style={{ color: '#DC2626', fontWeight: 700, fontSize: '0.78rem' }}>
+                      ✕ Record Missing in Feed D
+                    </span>
+                  )}
+                </td>
+              )}
             </tr>
 
             {/* Row 2: Amount */}
@@ -909,6 +1113,22 @@ const ThreeSourceMatchCard: React.FC<ThreeSourceMatchCardProps> = ({
                   <span style={{ color: 'var(--rx-text-muted)' }}>—</span>
                 )}
               </td>
+              {isFourSource && (
+                <td>
+                  {transactionD ? (
+                    <strong
+                      style={{
+                        color: isAmountMismatch ? '#DC2626' : 'var(--rx-text-primary)',
+                        textDecoration: isAmountMismatch ? 'underline' : 'none',
+                      }}
+                    >
+                      {formatAmountMinor(transactionD.amountMinor, transactionD.currency)}
+                    </strong>
+                  ) : (
+                    <span style={{ color: 'var(--rx-text-muted)' }}>—</span>
+                  )}
+                </td>
+              )}
             </tr>
 
             {/* Row 3: Transaction Date */}
@@ -923,6 +1143,11 @@ const ThreeSourceMatchCard: React.FC<ThreeSourceMatchCardProps> = ({
               <td style={{ color: isDateMismatch ? '#C2410C' : 'var(--rx-text-secondary)' }}>
                 {transactionC ? formatDate(transactionC.transactionDate) : '—'}
               </td>
+              {isFourSource && (
+                <td style={{ color: isDateMismatch ? '#C2410C' : 'var(--rx-text-secondary)' }}>
+                  {transactionD ? formatDate(transactionD.transactionDate) : '—'}
+                </td>
+              )}
             </tr>
 
             {/* Row 4: Reference / Link Identifier */}
@@ -935,8 +1160,13 @@ const ThreeSourceMatchCard: React.FC<ThreeSourceMatchCardProps> = ({
                 Ref: {transactionB?.reference || '—'}
               </td>
               <td style={{ color: 'var(--rx-text-secondary)', fontSize: '0.8rem' }}>
-                {transactionC ? `ExtTxn: ${transactionC.externalTxnId || transactionC.reference || '—'}` : '—'}
+                {transactionC ? `Ref: ${transactionC.externalTxnId || transactionC.reference || '—'}` : '—'}
               </td>
+              {isFourSource && (
+                <td style={{ color: 'var(--rx-text-secondary)', fontSize: '0.8rem' }}>
+                  {transactionD ? `Ref: ${transactionD.externalTxnId || transactionD.reference || '—'}` : '—'}
+                </td>
+              )}
             </tr>
           </tbody>
         </table>

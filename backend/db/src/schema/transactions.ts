@@ -12,6 +12,7 @@ import {
 import { dataSources } from './data-sources';
 import { imports } from './imports';
 import { organizations } from './organizations';
+import { screenshotFiles } from './screenshot-files';
 
 export const TransactionStatus = {
   IMPORTED: 'IMPORTED',
@@ -49,6 +50,9 @@ export const transactions = pgTable(
     status: varchar('status', { length: 50 }).default('UNMATCHED').notNull(),
     normalizedPayload: jsonb('normalized_payload').$type<Record<string, unknown>>(),
     fingerprint: varchar('fingerprint', { length: 64 }),
+    screenshotFileId: uuid('screenshot_file_id').references(() => screenshotFiles.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -68,6 +72,7 @@ export const transactions = pgTable(
     index('transactions_org_reference_idx').on(table.organizationId, table.reference),
     index('transactions_org_source_idx').on(table.organizationId, table.dataSourceId),
     index('transactions_org_import_idx').on(table.organizationId, table.importId),
+    index('transactions_org_screenshot_file_idx').on(table.organizationId, table.screenshotFileId),
   ],
 );
 

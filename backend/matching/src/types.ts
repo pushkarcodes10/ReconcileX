@@ -182,3 +182,66 @@ export interface MatchThreeSetsResult {
   quarantinedDuplicates: QuarantinedDuplicate[];
   statistics: ThreeSourceStatistics;
 }
+
+/**
+ * Generalized multi-source reconciliation interfaces (supporting 2, 3, 4, or N sources).
+ */
+export type MultiSourceClassification = ThreeSourceClassification;
+
+export interface SourceInput {
+  id: string;
+  name: string;
+  transactions: MatchTransaction[];
+  role?: string;
+}
+
+export interface MultiSourceMatchGroup {
+  id: string;
+  reconciliationType: 'TWO_SOURCE' | 'THREE_SOURCE' | 'FOUR_SOURCE' | 'MULTI_SOURCE';
+  classification: MultiSourceClassification;
+  score: number;
+  confidence: number;
+  reasons: string[];
+  explanation: string;
+  discrepancies: DiscrepancyDetail[];
+  transactionsBySourceId: Record<string, MatchTransaction | null>;
+  transactionIdsBySourceId: Record<string, string | null>;
+  sourceStatusBySourceId: Record<string, SourceStatusType>;
+  transactionAId?: string | null;
+  transactionBId?: string | null;
+  transactionCId?: string | null;
+  transactionDId?: string | null;
+  transactionA?: MatchTransaction | null;
+  transactionB?: MatchTransaction | null;
+  transactionC?: MatchTransaction | null;
+  transactionD?: MatchTransaction | null;
+}
+
+export interface MultiSourceQuarantinedDuplicate {
+  sourceId: string;
+  sourceName: string;
+  transaction: MatchTransaction;
+  reason: string;
+}
+
+export interface MultiSourceStatistics {
+  totalBySourceId: Record<string, number>;
+  totalProcessed: number;
+  fullyMatchedCount: number;
+  partiallyMatchedCount: number;
+  amountMismatchCount: number;
+  dateMismatchCount: number;
+  referenceMismatchCount: number;
+  potentialMatchCount: number;
+  unmatchedCount: number;
+  quarantinedCount: number;
+  matchRate: number;
+}
+
+export interface MatchNSetsResult {
+  matchGroups: MultiSourceMatchGroup[];
+  unmatchedBySourceId: Record<string, MatchTransaction[]>;
+  quarantinedDuplicates: MultiSourceQuarantinedDuplicate[];
+  statistics: MultiSourceStatistics;
+}
+

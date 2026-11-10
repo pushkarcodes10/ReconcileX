@@ -16,3 +16,6 @@ export * from './exceptions';
 export * from './exception-comments';
 export * from './audit-logs';
 export * from './jobs';
+export * from './screenshot-datasets';
+export * from './screenshot-files';
+export * from './screenshot-extracted-records';

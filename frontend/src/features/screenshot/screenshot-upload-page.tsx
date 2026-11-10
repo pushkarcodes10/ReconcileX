@@ -2,9 +2,18 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { dataSourcesApi } from '../../api/endpoints/data-sources';
-import { screenshotApi, ExtractScreenshotResponse, IngestScreenshotResponse } from '../../api/endpoints/screenshot';
-import { ApiError } from '../../api/errors';
+import {
+  screenshotApi,
+  ExtractScreenshotResponse,
+  IngestScreenshotResponse,
+} from '../../api/endpoints/screenshot';
+import {
+  ScreenshotDatasetDetail,
+  ScreenshotExtractedRecord,
+  UpdateExtractedRecordPayload,
+} from '../../api/types';
 import { formatAmountMinor } from '../../shared/lib/amount';
+import { formatDate, formatDateTime } from '../../shared/lib/date';
 import {
   CameraIcon,
   CheckCircleIcon,
@@ -13,30 +22,50 @@ import {
   SparkleIcon,
   ImageIcon,
   ReceiptIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
   RefreshIcon,
   GitCompareIcon,
+  XIcon,
+  UploadIcon,
 } from '../../shared/components/icons';
 
-type IngestionState = 'idle' | 'extracting' | 'review' | 'ingesting' | 'completed' | 'error';
+type ActiveTab = 'batch_dataset' | 'single_extract' | 'dataset_history';
 
 export const ScreenshotUploadPage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const queryClient = useQueryClient();
 
-  // State
+  const [activeTab, setActiveTab] = useState<ActiveTab>('batch_dataset');
+
+  // ---------------------------------------------------------------------------
+  // Batch Dataset State
+  // ---------------------------------------------------------------------------
+  const [datasetName, setDatasetName] = useState('');
+  const [targetBatchSourceId, setTargetBatchSourceId] = useState('');
+  const [batchFiles, setBatchFiles] = useState<File[]>([]);
+  const [isBatchDragging, setIsBatchDragging] = useState(false);
+  const [activeDataset, setActiveDataset] = useState<ScreenshotDatasetDetail | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [editingRecord, setEditingRecord] = useState<ScreenshotExtractedRecord | null>(null);
+  const [editFormData, setEditFormData] = useState<UpdateExtractedRecordPayload>({});
+  const [previewModalFile, setPreviewModalFile] = useState<{ url: string; filename: string } | null>(null);
+  const [confirmSuccessMessage, setConfirmSuccessMessage] = useState<string | null>(null);
+
+  const batchFileInputRef = useRef<HTMLInputElement>(null);
+
+  // ---------------------------------------------------------------------------
+  // Single Ingest State (Backward Compatibility)
+  // ---------------------------------------------------------------------------
   const [targetDataSourceId, setTargetDataSourceId] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [ingestionState, setIngestionState] = useState<IngestionState>('idle');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [singleLoading, setSingleLoading] = useState(false);
+  const [singleErrorMessage, setSingleErrorMessage] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractScreenshotResponse | null>(null);
   const [rawOcrExpanded, setRawOcrExpanded] = useState(false);
   const [ingestedResult, setIngestedResult] = useState<IngestScreenshotResponse | null>(null);
 
-  // Editable Form fields
+  // Single Editable Form
   const [amount, setAmount] = useState<number>(0);
   const [currency, setCurrency] = useState<string>('INR');
   const [transactionDate, setTransactionDate] = useState<string>('');
@@ -49,906 +78,1336 @@ export const ScreenshotUploadPage: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch Data Sources
-  const { data: dataSources, isLoading: sourcesLoading } = useQuery({
+  // ---------------------------------------------------------------------------
+  // Queries
+  // ---------------------------------------------------------------------------
+  const { data: dataSources } = useQuery({
     queryKey: ['data-sources', orgId],
     queryFn: () => dataSourcesApi.list(orgId!, { page: 1, limit: 100 }),
     enabled: !!orgId,
   });
 
-  // Preselect first data source if none selected
+  const { data: datasetsList, isLoading: datasetsLoading, refetch: refetchDatasets } = useQuery({
+    queryKey: ['screenshot-datasets', orgId],
+    queryFn: () => screenshotApi.getDatasets(orgId!),
+    enabled: !!orgId,
+  });
+
+  // Preselect default target data source
   useEffect(() => {
     if (dataSources?.items && dataSources.items.length > 0 && !targetDataSourceId) {
       setTargetDataSourceId(dataSources.items[0].id);
     }
   }, [dataSources, targetDataSourceId]);
 
-  // Clipboard paste listener (Ctrl+V)
-  useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      if (ingestionState === 'extracting' || ingestionState === 'ingesting') return;
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) {
-            handleFileSelection(file);
-            break;
-          }
-        }
-      }
-    };
-
-    window.addEventListener('paste', handlePaste);
-    return () => window.removeEventListener('paste', handlePaste);
-  }, [ingestionState]);
-
-  // Cleanup object url on unmount
+  // Cleanup object url for single upload
   useEffect(() => {
     return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
 
-  const handleFileSelection = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setErrorMessage('Please upload a valid image file (PNG, JPEG, WebP).');
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      setErrorMessage('File size exceeds 15MB limit.');
-      return;
-    }
+  // ---------------------------------------------------------------------------
+  // Batch Dataset Mutations
+  // ---------------------------------------------------------------------------
+  const createDatasetMutation = useMutation({
+    mutationFn: async () => {
+      if (!datasetName.trim()) throw new Error('Please enter a dataset name.');
+      if (batchFiles.length === 0) throw new Error('Please select at least one screenshot image.');
+      return screenshotApi.createDataset(
+        orgId!,
+        datasetName.trim(),
+        batchFiles,
+        targetBatchSourceId || undefined,
+      );
+    },
+    onSuccess: (data) => {
+      setActiveDataset(data);
+      setBatchFiles([]);
+      setBatchError(null);
+      queryClient.invalidateQueries({ queryKey: ['screenshot-datasets', orgId] });
+    },
+    onError: (err: any) => {
+      setBatchError(err?.message || 'Failed to upload and extract screenshot dataset.');
+    },
+  });
 
-    setErrorMessage(null);
-    setSelectedFile(file);
+  const updateRecordMutation = useMutation({
+    mutationFn: async ({
+      recordId,
+      payload,
+    }: {
+      recordId: string;
+      payload: UpdateExtractedRecordPayload;
+    }) => {
+      return screenshotApi.updateExtractedRecord(orgId!, recordId, payload);
+    },
+    onSuccess: (updatedRecord) => {
+      if (activeDataset && activeDataset.records) {
+        setActiveDataset({
+          ...activeDataset,
+          records: activeDataset.records.map((r) =>
+            r.id === updatedRecord.id ? { ...r, ...updatedRecord } : r,
+          ),
+        });
+      }
+      setEditingRecord(null);
+      setEditFormData({});
+      setBatchError(null);
+    },
+    onError: (err: any) => {
+      setBatchError(err?.message || 'Failed to update record.');
+    },
+  });
 
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
+  const confirmDatasetMutation = useMutation({
+    mutationFn: async (datasetId: string) => {
+      return screenshotApi.confirmDataset(orgId!, datasetId, {
+        dataSourceName: activeDataset?.name,
+      });
+    },
+    onSuccess: (confirmed) => {
+      setActiveDataset(confirmed);
+      setConfirmSuccessMessage(
+        `Dataset "${confirmed.name}" confirmed successfully! Ingested ${confirmed.confirmedRecords} transaction(s) into ledger. This dataset is now READY for reconciliation.`,
+      );
+      queryClient.invalidateQueries({ queryKey: ['screenshot-datasets', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['data-sources', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', orgId] });
+    },
+    onError: (err: any) => {
+      setBatchError(err?.message || 'Failed to confirm dataset.');
+    },
+  });
 
-    // Automatically trigger extraction
-    performExtraction(file);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      handleFileSelection(files[0]);
-    }
-  };
-
-  // 1. Extraction Mutation
-  const extractMutation = useMutation({
+  // ---------------------------------------------------------------------------
+  // Single Extraction & Ingest Mutations
+  // ---------------------------------------------------------------------------
+  const singleExtractMutation = useMutation({
     mutationFn: (file: File) => screenshotApi.extractScreenshot(orgId!, file),
     onSuccess: (data) => {
       setExtractedData(data);
-      // Populate editable fields with detected values
       setAmount(data.amount);
-      setCurrency(data.currency || 'INR');
-      setTransactionDate(data.transactionDate || new Date().toISOString().slice(0, 10));
-      setExternalId(data.externalId || '');
+      setCurrency(data.currency);
+      setTransactionDate(data.transactionDate);
+      setExternalId(data.externalId);
       setReference(data.reference || '');
       setExternalTxnId(data.externalTxnId || '');
       setMerchantOrOrderId(data.merchantOrOrderId || '');
       setTxnType(data.txnType || 'PAYMENT');
       setDescription(data.description || '');
-      setIngestionState('review');
+      setSingleLoading(false);
     },
     onError: (err: any) => {
-      setIngestionState('error');
-      if (ApiError.isApiError(err)) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage(err?.message || 'Failed to extract text from screenshot.');
-      }
+      setSingleLoading(false);
+      setSingleErrorMessage(err?.message || 'Failed to extract screenshot.');
     },
   });
 
-  const performExtraction = (file: File) => {
-    setIngestionState('extracting');
-    setErrorMessage(null);
-    setExtractedData(null);
-    extractMutation.mutate(file);
-  };
-
-  // 2. Ingest Mutation
-  const ingestMutation = useMutation({
+  const singleIngestMutation = useMutation({
     mutationFn: (payload: any) => screenshotApi.ingestScreenshot(orgId!, payload),
     onSuccess: (res) => {
       setIngestedResult(res);
-      setIngestionState('completed');
+      setSingleLoading(false);
       queryClient.invalidateQueries({ queryKey: ['transactions', orgId] });
       queryClient.invalidateQueries({ queryKey: ['data-sources', orgId] });
     },
     onError: (err: any) => {
-      setIngestionState('review');
-      if (ApiError.isApiError(err)) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage(err?.message || 'Failed to ingest transaction into ledger.');
-      }
+      setSingleLoading(false);
+      setSingleErrorMessage(err?.message || 'Failed to ingest transaction.');
     },
   });
 
-  const handleIngest = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetDataSourceId) {
-      setErrorMessage('Please select a target Data Source for this transaction.');
-      return;
+  // Batch file handling
+  const handleBatchFileAdd = (files: FileList | null) => {
+    if (!files) return;
+    const newFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (f.type.startsWith('image/')) {
+        newFiles.push(f);
+      }
     }
-    if (!externalId.trim()) {
-      setErrorMessage('External ID / UTR is required.');
-      return;
-    }
-    if (!amount || amount <= 0) {
-      setErrorMessage('Valid transaction amount greater than 0 is required.');
-      return;
-    }
-    if (!transactionDate) {
-      setErrorMessage('Transaction date is required.');
-      return;
-    }
-
-    setErrorMessage(null);
-    setIngestionState('ingesting');
-
-    ingestMutation.mutate({
-      dataSourceId: targetDataSourceId,
-      externalId: externalId.trim(),
-      amount: Number(amount),
-      currency: currency.toUpperCase().trim(),
-      transactionDate,
-      reference: reference.trim() || undefined,
-      externalTxnId: externalTxnId.trim() || undefined,
-      merchantOrOrderId: merchantOrOrderId.trim() || undefined,
-      txnType: txnType.trim() || undefined,
-      metadata: {
-        source: 'SCREENSHOT_OCR_INGESTION',
-        extractionMethod: extractedData?.extractionMethod,
-        confidenceScore: extractedData?.confidenceScore,
-        rawOcrPreview: extractedData?.rawOcrText?.slice(0, 300),
-        originalFileName: selectedFile?.name,
-      },
-    });
+    setBatchFiles((prev) => [...prev, ...newFiles]);
   };
 
-  const handleReset = () => {
-    setSelectedFile(null);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setExtractedData(null);
-    setIngestedResult(null);
-    setIngestionState('idle');
-    setErrorMessage(null);
-    setAmount(0);
-    setCurrency('INR');
-    setTransactionDate('');
-    setExternalId('');
-    setReference('');
-    setExternalTxnId('');
-    setMerchantOrOrderId('');
-    setTxnType('PAYMENT');
-    setDescription('');
+  const removeBatchFile = (index: number) => {
+    setBatchFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const loadDatasetForReview = async (datasetId: string) => {
+    try {
+      const detail = await screenshotApi.getDatasetById(orgId!, datasetId);
+      setActiveDataset(detail);
+      setActiveTab('batch_dataset');
+      setConfirmSuccessMessage(null);
+      setBatchError(null);
+    } catch (e: any) {
+      setBatchError(e?.message || 'Failed to load dataset details.');
+    }
+  };
+
+  const startEditRecord = (record: ScreenshotExtractedRecord) => {
+    setEditingRecord(record);
+    setEditFormData({
+      externalId: record.externalId,
+      amount: record.amount,
+      currency: record.currency,
+      transactionDate:
+        typeof record.transactionDate === 'string'
+          ? record.transactionDate.split('T')[0]
+          : new Date(record.transactionDate).toISOString().split('T')[0],
+      reference: record.reference || '',
+      externalTxnId: record.externalTxnId || '',
+      merchantOrOrderId: record.merchantOrOrderId || '',
+      txnType: record.txnType || 'PAYMENT',
+      paymentMethod: record.paymentMethod || '',
+      senderReceiver: record.senderReceiver || '',
+      description: record.description || '',
+    });
   };
 
   if (!orgId) return null;
 
-  const selectedDs = dataSources?.items.find((ds) => ds.id === targetDataSourceId);
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Top Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', maxWidth: '1240px', margin: '0 auto' }}>
+      {/* Breadcrumb Header */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
           <Link
-            to={`/orgs/${orgId}/transactions`}
+            to={`/orgs/${orgId}/data-sources`}
             style={{
+              color: 'var(--rx-text-secondary)',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.35rem',
-              color: 'var(--rx-text-secondary)',
+              gap: '0.25rem',
+              fontSize: '0.875rem',
               textDecoration: 'none',
-              fontSize: '0.85rem',
-              fontWeight: 600,
             }}
           >
-            <ArrowLeftIcon size={14} /> Back to Transactions
+            <ArrowLeftIcon size={14} /> Back to Data Sources
           </Link>
-          <span style={{ color: 'var(--rx-text-muted)' }}>/</span>
-          <span style={{ fontSize: '0.85rem', color: 'var(--rx-text-primary)', fontWeight: 600 }}>
-            Screenshot Receipt OCR
-          </span>
         </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <CameraIcon size={26} style={{ color: 'var(--rx-dark)' }} />
-              Receipt & Screenshot Ingestion
+            <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <CameraIcon size={28} style={{ color: 'var(--rx-primary)' }} />
+              Screenshot Transaction Ingestion
             </h1>
-            <p style={{ margin: '0.35rem 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.9rem' }}>
-              Upload or paste payment receipts (UPI, GPay, Stripe, Bank SMS, Invoices). AI OCR extracts transaction data and ingests it directly into your ledger ready for reconciliation matching.
+            <p style={{ margin: '0.35rem 0 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.9rem' }}>
+              Upload single or batch payment screenshots (UPI, Bank, Stripe, Razorpay). Extract structured transaction data, review confidence, and ingest directly into reconciliation.
             </p>
           </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <Link to={`/orgs/${orgId}/reconciliation/new`} className="rx-btn rx-btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <GitCompareIcon size={16} /> Open Reconciliation Run
-            </Link>
-          </div>
+          <Link
+            to={`/orgs/${orgId}/reconciliation/new`}
+            className="rx-btn rx-btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <GitCompareIcon size={16} /> New Reconciliation Run
+          </Link>
         </div>
       </div>
 
-      {/* Error Banner */}
-      {errorMessage && (
-        <div
-          className="rx-card"
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--rx-border)', gap: '1rem' }}>
+        <button
+          onClick={() => setActiveTab('batch_dataset')}
           style={{
-            backgroundColor: 'var(--rx-danger-bg)',
-            borderColor: 'var(--rx-danger-border)',
-            padding: '1rem 1.25rem',
-            color: 'var(--rx-danger)',
+            padding: '0.75rem 1rem',
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'batch_dataset' ? '2px solid var(--rx-primary)' : '2px solid transparent',
+            color: activeTab === 'batch_dataset' ? 'var(--rx-primary)' : 'var(--rx-text-secondary)',
+            fontWeight: activeTab === 'batch_dataset' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '0.95rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.75rem',
+            gap: '0.45rem',
           }}
         >
-          <AlertCircleIcon size={20} />
-          <div style={{ flex: 1, fontSize: '0.875rem' }}>{errorMessage}</div>
-          <button
-            onClick={() => setErrorMessage(null)}
-            className="rx-btn rx-btn-ghost"
-            style={{ padding: '0.2rem 0.5rem', color: 'var(--rx-danger)' }}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+          <UploadIcon size={16} /> Batch Dataset Ingestion & Review
+          {activeDataset && (
+            <span
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.1rem 0.45rem',
+                borderRadius: '10px',
+                backgroundColor: activeDataset.status === 'READY' ? 'var(--rx-success-bg)' : 'var(--rx-warning-bg)',
+                color: activeDataset.status === 'READY' ? 'var(--rx-success)' : 'var(--rx-warning)',
+                fontWeight: 700,
+              }}
+            >
+              {activeDataset.status}
+            </span>
+          )}
+        </button>
 
-      {/* SUCCESS STATE */}
-      {ingestionState === 'completed' && ingestedResult && (
-        <div
-          className="rx-card rx-animate-fade-in"
+        <button
+          onClick={() => setActiveTab('dataset_history')}
           style={{
-            padding: '2.5rem 2rem',
-            backgroundColor: 'var(--rx-surface)',
-            border: '2px solid var(--rx-success-border)',
+            padding: '0.75rem 1rem',
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'dataset_history' ? '2px solid var(--rx-primary)' : '2px solid transparent',
+            color: activeTab === 'dataset_history' ? 'var(--rx-primary)' : 'var(--rx-text-secondary)',
+            fontWeight: activeTab === 'dataset_history' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '0.95rem',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '1.5rem',
+            alignItems: 'center',
+            gap: '0.45rem',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <ReceiptIcon size={16} /> Ingested Datasets
+          {datasetsList && (
+            <span
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.1rem 0.45rem',
+                borderRadius: '10px',
+                backgroundColor: 'var(--rx-surface-hover)',
+                color: 'var(--rx-text-secondary)',
+              }}
+            >
+              {datasetsList.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('single_extract')}
+          style={{
+            padding: '0.75rem 1rem',
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'single_extract' ? '2px solid var(--rx-primary)' : '2px solid transparent',
+            color: activeTab === 'single_extract' ? 'var(--rx-primary)' : 'var(--rx-text-secondary)',
+            fontWeight: activeTab === 'single_extract' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '0.95rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+          }}
+        >
+          <SparkleIcon size={16} /> Quick Single Receipt OCR
+        </button>
+      </div>
+
+      {/* =======================================================================
+          TAB 1: BATCH DATASET INGESTION & REVIEW
+          ======================================================================= */}
+      {activeTab === 'batch_dataset' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {batchError && (
             <div
               style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
+                padding: '0.85rem 1rem',
+                backgroundColor: 'var(--rx-danger-bg)',
+                border: '1px solid var(--rx-danger-border)',
+                borderRadius: 'var(--rx-radius-md)',
+                color: 'var(--rx-danger)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.875rem',
+              }}
+            >
+              <AlertCircleIcon size={18} />
+              <div><strong>Error:</strong> {batchError}</div>
+            </div>
+          )}
+
+          {confirmSuccessMessage && (
+            <div
+              style={{
+                padding: '1rem 1.25rem',
                 backgroundColor: 'var(--rx-success-bg)',
+                border: '1px solid var(--rx-success-border)',
+                borderRadius: 'var(--rx-radius-md)',
                 color: 'var(--rx-success)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
               }}
             >
-              <CheckCircleIcon size={28} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <CheckCircleIcon size={20} />
+                <span style={{ fontWeight: 600 }}>{confirmSuccessMessage}</span>
+              </div>
+              <Link
+                to={`/orgs/${orgId}/reconciliation/new`}
+                className="rx-btn rx-btn-primary rx-btn-sm"
+              >
+                Create Reconciliation Run &rarr;
+              </Link>
             </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: 'var(--rx-success)' }}>
-                Transaction Ingested Successfully!
+          )}
+
+          {/* If no active dataset being reviewed, show upload form */}
+          {!activeDataset ? (
+            <div className="rx-card" style={{ padding: '2rem' }}>
+              <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', fontWeight: 700 }}>
+                1. Upload Batch of Transaction Screenshots
               </h2>
-              <div style={{ color: 'var(--rx-text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                {ingestedResult.message}
-              </div>
-            </div>
-          </div>
+              <p style={{ margin: '0 0 1.5rem 0', color: 'var(--rx-text-secondary)', fontSize: '0.875rem' }}>
+                Images are securely stored in private S3-compatible storage. OCR will extract records into a staged review dataset where you can verify fields before saving into the ledger.
+              </p>
 
-          {/* Details Grid */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '1rem',
-              backgroundColor: 'var(--rx-surface-subtle)',
-              padding: '1.25rem',
-              borderRadius: 'var(--rx-radius-md)',
-              border: '1px solid var(--rx-border)',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--rx-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                Transaction ID
-              </div>
-              <div style={{ fontFamily: 'var(--rx-font-mono)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                {ingestedResult.id}
-              </div>
-            </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Dataset Name *
+                  </label>
+                  <input
+                    type="text"
+                    className="rx-input"
+                    value={datasetName}
+                    onChange={(e) => setDatasetName(e.target.value)}
+                    placeholder="e.g. Vendor Invoices - Batch 1"
+                    required
+                  />
+                </div>
 
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--rx-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                External ID / Reference
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Target Data Source (Optional)
+                  </label>
+                  <select
+                    className="rx-select"
+                    value={targetBatchSourceId}
+                    onChange={(e) => setTargetBatchSourceId(e.target.value)}
+                  >
+                    <option value="">Auto-create new Data Source from dataset name</option>
+                    {dataSources?.items.map((ds) => (
+                      <option key={ds.id} value={ds.id}>
+                        {ds.name} ({ds.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', marginTop: '0.25rem' }}>
-                {ingestedResult.externalId} {ingestedResult.reference ? `(${ingestedResult.reference})` : ''}
-              </div>
-            </div>
 
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--rx-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                Amount Ingested
+              {/* Drag and Drop Zone */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsBatchDragging(true);
+                }}
+                onDragLeave={() => setIsBatchDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsBatchDragging(false);
+                  handleBatchFileAdd(e.dataTransfer.files);
+                }}
+                onClick={() => batchFileInputRef.current?.click()}
+                style={{
+                  border: isBatchDragging ? '2px dashed var(--rx-primary)' : '2px dashed var(--rx-border)',
+                  backgroundColor: isBatchDragging ? 'var(--rx-surface-hover)' : 'var(--rx-surface)',
+                  padding: '2.5rem 1.5rem',
+                  borderRadius: 'var(--rx-radius-lg)',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s ease',
+                  marginBottom: '1.5rem',
+                }}
+              >
+                <input
+                  ref={batchFileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleBatchFileAdd(e.target.files)}
+                />
+                <CameraIcon size={44} style={{ color: 'var(--rx-text-muted)', marginBottom: '0.75rem' }} />
+                <div style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '0.25rem' }}>
+                  Click to select multiple screenshots or drag & drop files here
+                </div>
+                <div style={{ color: 'var(--rx-text-muted)', fontSize: '0.85rem' }}>
+                  Supports PNG, JPG, JPEG, and WebP (up to 10MB each)
+                </div>
               </div>
-              <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--rx-dark)', marginTop: '0.25rem' }}>
-                {formatAmountMinor(ingestedResult.amountMinor, ingestedResult.currency)}
-              </div>
-            </div>
 
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--rx-text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
-                Ledger Status
-              </div>
-              <div style={{ marginTop: '0.25rem' }}>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '0.2rem 0.6rem',
-                    borderRadius: 'var(--rx-radius-full)',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    backgroundColor: 'var(--rx-info-bg)',
-                    color: 'var(--rx-info)',
-                    border: '1px solid var(--rx-info-border)',
-                  }}
+              {/* Selected Files List */}
+              {batchFiles.length > 0 && (
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                    Selected Files ({batchFiles.length}):
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {batchFiles.map((file, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.4rem 0.75rem',
+                          backgroundColor: 'var(--rx-surface-hover)',
+                          borderRadius: 'var(--rx-radius-sm)',
+                          fontSize: '0.825rem',
+                          border: '1px solid var(--rx-border)',
+                        }}
+                      >
+                        <ImageIcon size={14} />
+                        <span style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {file.name}
+                        </span>
+                        <span style={{ color: 'var(--rx-text-muted)' }}>
+                          ({(file.size / 1024).toFixed(0)} KB)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeBatchFile(idx);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--rx-danger)',
+                            cursor: 'pointer',
+                            padding: '0 0.2rem',
+                          }}
+                        >
+                          <XIcon size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="rx-btn rx-btn-primary"
+                  disabled={batchFiles.length === 0 || !datasetName.trim() || createDatasetMutation.isPending}
+                  onClick={() => createDatasetMutation.mutate()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
                 >
-                  {ingestedResult.status} (Eligible for Reconciliation)
-                </span>
+                  {createDatasetMutation.isPending ? (
+                    <>
+                      <RefreshIcon size={16} className="animate-spin" /> Uploading & Extracting OCR...
+                    </>
+                  ) : (
+                    <>
+                      <SparkleIcon size={16} /> Upload & Extract Staged Dataset ({batchFiles.length} images)
+                    </>
+                  )}
+                </button>
               </div>
             </div>
+          ) : (
+            /* ===============================================================
+               Review & Confirmation Interface
+               =============================================================== */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Dataset Header Card */}
+              <div
+                className="rx-card"
+                style={{
+                  padding: '1.5rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                  backgroundColor: 'var(--rx-surface)',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.25rem' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800 }}>
+                      {activeDataset.name}
+                    </h2>
+                    <span
+                      style={{
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '12px',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        backgroundColor:
+                          activeDataset.status === 'READY'
+                            ? 'var(--rx-success-bg)'
+                            : activeDataset.status === 'REVIEW_REQUIRED'
+                            ? 'var(--rx-warning-bg)'
+                            : 'var(--rx-surface-hover)',
+                        color:
+                          activeDataset.status === 'READY'
+                            ? 'var(--rx-success)'
+                            : activeDataset.status === 'REVIEW_REQUIRED'
+                            ? 'var(--rx-warning)'
+                            : 'var(--rx-text-secondary)',
+                      }}
+                    >
+                      {activeDataset.status}
+                    </span>
+                  </div>
+                  <div style={{ color: 'var(--rx-text-secondary)', fontSize: '0.85rem' }}>
+                    Created: {formatDateTime(activeDataset.createdAt)} • Files: {activeDataset.totalFiles} • Staged Records: {activeDataset.totalRecords}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    className="rx-btn rx-btn-secondary rx-btn-sm"
+                    onClick={() => {
+                      setActiveDataset(null);
+                      setConfirmSuccessMessage(null);
+                    }}
+                  >
+                    Upload Another Batch
+                  </button>
+
+                  {activeDataset.status === 'REVIEW_REQUIRED' && (
+                    <button
+                      type="button"
+                      className="rx-btn rx-btn-primary rx-btn-sm"
+                      disabled={confirmDatasetMutation.isPending}
+                      onClick={() => confirmDatasetMutation.mutate(activeDataset.id)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                      {confirmDatasetMutation.isPending ? (
+                        <>
+                          <RefreshIcon size={14} className="animate-spin" /> Ingesting into Ledger...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircleIcon size={14} /> Confirm & Ingest Dataset
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Records Table */}
+              <div className="rx-card" style={{ padding: '0', overflow: 'hidden' }}>
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--rx-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+                      Extracted Transaction Records ({activeDataset.records?.length || 0})
+                    </h3>
+                    <p style={{ margin: '0.2rem 0 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.825rem' }}>
+                      Review values extracted from screenshots. Low confidence or duplicate records are flagged for verification.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="rx-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--rx-surface-hover)', textAlign: 'left', borderBottom: '1px solid var(--rx-border)' }}>
+                        <th style={{ padding: '0.75rem 1rem' }}>Screenshot</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>External ID / UTR</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Amount</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Date</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Reference / Counterparty</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Confidence</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Validation</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeDataset.records && activeDataset.records.length > 0 ? (
+                        activeDataset.records.map((r) => {
+                          const file = activeDataset.files?.find((f) => f.id === r.screenshotFileId);
+                          const hasErrors = r.validationErrors && r.validationErrors.length > 0;
+                          return (
+                            <tr
+                              key={r.id}
+                              style={{
+                                borderBottom: '1px solid var(--rx-border)',
+                                backgroundColor: hasErrors ? 'rgba(239, 68, 68, 0.04)' : undefined,
+                              }}
+                            >
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                {r.screenshotPreviewUrl ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPreviewModalFile({
+                                        url: r.screenshotPreviewUrl!,
+                                        filename: file?.originalFilename || 'Screenshot',
+                                      })
+                                    }
+                                    style={{
+                                      background: 'none',
+                                      border: '1px solid var(--rx-border)',
+                                      borderRadius: '4px',
+                                      padding: '2px',
+                                      cursor: 'pointer',
+                                      display: 'inline-block',
+                                    }}
+                                    title="Click to inspect original screenshot"
+                                  >
+                                    <img
+                                      src={r.screenshotPreviewUrl}
+                                      alt="Screenshot"
+                                      style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '3px' }}
+                                    />
+                                  </button>
+                                ) : (
+                                  <div
+                                    style={{
+                                      width: '48px',
+                                      height: '48px',
+                                      backgroundColor: 'var(--rx-surface-hover)',
+                                      borderRadius: '4px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <ImageIcon size={20} style={{ color: 'var(--rx-text-muted)' }} />
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontWeight: 600 }}>
+                                {r.externalId}
+                                {r.userCorrected && (
+                                  <span
+                                    style={{
+                                      display: 'block',
+                                      fontSize: '0.7rem',
+                                      color: 'var(--rx-info)',
+                                      fontFamily: 'sans-serif',
+                                    }}
+                                  >
+                                    Edited by User
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>
+                                {formatAmountMinor(r.amountMinor, r.currency)}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', color: 'var(--rx-text-secondary)' }}>
+                                {formatDate(r.transactionDate)}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                <div>{r.reference || '-'}</div>
+                                {r.merchantOrOrderId && (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--rx-text-muted)' }}>
+                                    {r.merchantOrOrderId}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    padding: '0.2rem 0.5rem',
+                                    borderRadius: '10px',
+                                    backgroundColor:
+                                      r.confidenceScore >= 80 ? 'var(--rx-success-bg)' : 'var(--rx-warning-bg)',
+                                    color:
+                                      r.confidenceScore >= 80 ? 'var(--rx-success)' : 'var(--rx-warning)',
+                                  }}
+                                >
+                                  {r.confidenceScore}%
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                {hasErrors ? (
+                                  <div style={{ color: 'var(--rx-danger)', fontSize: '0.75rem' }}>
+                                    {r.validationErrors!.map((msg, i) => (
+                                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                        • {msg}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : r.isDuplicate ? (
+                                  <span style={{ color: 'var(--rx-warning)', fontSize: '0.75rem', fontWeight: 600 }}>
+                                    ⚠️ Duplicate Warning
+                                  </span>
+                                ) : (
+                                  <span style={{ color: 'var(--rx-success)', fontSize: '0.75rem', fontWeight: 600 }}>
+                                    ✓ Valid
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                                {activeDataset.status !== 'READY' && (
+                                  <button
+                                    type="button"
+                                    className="rx-btn rx-btn-secondary rx-btn-sm"
+                                    onClick={() => startEditRecord(r)}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: 'var(--rx-text-muted)' }}>
+                            No extracted records found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =======================================================================
+          TAB 2: DATASET HISTORY
+          ======================================================================= */}
+      {activeTab === 'dataset_history' && (
+        <div className="rx-card" style={{ padding: '0', overflow: 'hidden' }}>
+          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--rx-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+                Uploaded Screenshot Datasets
+              </h3>
+              <p style={{ margin: '0.2rem 0 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.825rem' }}>
+                All screenshot batches uploaded for this organization with their status and reconciliation readiness.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="rx-btn rx-btn-secondary rx-btn-sm"
+              onClick={() => refetchDatasets()}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <RefreshIcon size={14} /> Refresh
+            </button>
           </div>
 
-          {/* Action CTAs */}
-          <div style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap', alignItems: 'center', paddingTop: '0.5rem' }}>
-            <Link
-              to={`/orgs/${orgId}/reconciliation/new?sourceA=${ingestedResult.dataSourceId}`}
-              className="rx-btn rx-btn-lime"
-              style={{ fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              <GitCompareIcon size={16} /> Run Reconciliation with This Transaction
-            </Link>
-
-            <Link
-              to={`/orgs/${orgId}/transactions?sourceId=${ingestedResult.dataSourceId}`}
-              className="rx-btn rx-btn-dark"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              <ReceiptIcon size={16} /> View in Transactions Explorer
-            </Link>
-
-            <button onClick={handleReset} className="rx-btn rx-btn-secondary" style={{ marginLeft: 'auto' }}>
-              Extract Another Screenshot
-            </button>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="rx-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: 'var(--rx-surface-hover)', textAlign: 'left', borderBottom: '1px solid var(--rx-border)' }}>
+                  <th style={{ padding: '0.75rem 1rem' }}>Dataset Name</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Status</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Files</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Records</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Confirmed</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Created</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {datasetsLoading ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--rx-text-secondary)' }}>
+                      Loading screenshot datasets...
+                    </td>
+                  </tr>
+                ) : datasetsList && datasetsList.length > 0 ? (
+                  datasetsList.map((ds) => (
+                    <tr key={ds.id} style={{ borderBottom: '1px solid var(--rx-border)' }}>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>{ds.name}</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>
+                        <span
+                          style={{
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '10px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            backgroundColor:
+                              ds.status === 'READY'
+                                ? 'var(--rx-success-bg)'
+                                : ds.status === 'REVIEW_REQUIRED'
+                                ? 'var(--rx-warning-bg)'
+                                : 'var(--rx-surface-hover)',
+                            color:
+                              ds.status === 'READY'
+                                ? 'var(--rx-success)'
+                                : ds.status === 'REVIEW_REQUIRED'
+                                ? 'var(--rx-warning)'
+                                : 'var(--rx-text-secondary)',
+                          }}
+                        >
+                          {ds.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem' }}>{ds.totalFiles}</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>{ds.totalRecords}</td>
+                      <td style={{ padding: '0.75rem 1rem' }}>{ds.confirmedRecords}</td>
+                      <td style={{ padding: '0.75rem 1rem', color: 'var(--rx-text-secondary)' }}>
+                        {formatDateTime(ds.createdAt)}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          className="rx-btn rx-btn-secondary rx-btn-sm"
+                          onClick={() => loadDatasetForReview(ds.id)}
+                        >
+                          {ds.status === 'REVIEW_REQUIRED' ? 'Review & Confirm' : 'View Details'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--rx-text-muted)' }}>
+                      No screenshot datasets have been ingested yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* IDLE / EXTRACTION / REVIEW FORM */}
-      {ingestionState !== 'completed' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Target Data Source Card */}
-          <div className="rx-card" style={{ padding: '1.25rem 1.5rem', backgroundColor: 'var(--rx-surface)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-              <div style={{ flex: 1, minWidth: '240px' }}>
-                <label htmlFor="target-ds" className="rx-label" style={{ fontSize: '0.85rem' }}>
-                  Target Ledger Data Source *
-                </label>
-                <select
-                  id="target-ds"
-                  value={targetDataSourceId}
-                  onChange={(e) => setTargetDataSourceId(e.target.value)}
-                  disabled={sourcesLoading || ingestionState === 'extracting' || ingestionState === 'ingesting'}
-                  className="rx-select"
-                  style={{ fontSize: '0.9rem', width: '100%', maxWidth: '450px' }}
-                >
-                  {dataSources?.items.map((ds) => (
-                    <option key={ds.id} value={ds.id}>
-                      {ds.name} ({ds.type} • {ds.direction || 'NEUTRAL'})
-                    </option>
-                  ))}
-                </select>
-              </div>
+      {/* =======================================================================
+          TAB 3: QUICK SINGLE RECEIPT OCR (BACKWARD COMPATIBILITY)
+          ======================================================================= */}
+      {activeTab === 'single_extract' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>
+          {/* Left: Upload Card */}
+          <div className="rx-card" style={{ padding: '1.5rem' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.15rem', fontWeight: 700 }}>
+              Upload Receipt Image
+            </h3>
 
-              {selectedDs && (
-                <div
-                  style={{
-                    backgroundColor: 'var(--rx-surface-subtle)',
-                    padding: '0.65rem 1rem',
-                    borderRadius: 'var(--rx-radius-md)',
-                    border: '1px solid var(--rx-border)',
-                    fontSize: '0.825rem',
-                    color: 'var(--rx-text-secondary)',
-                  }}
-                >
-                  Target data source: <strong style={{ color: 'var(--rx-text-primary)' }}>{selectedDs.name}</strong> (
-                  <code style={{ fontSize: '0.75rem' }}>{selectedDs.type}</code> • {selectedDs.direction || 'NEUTRAL'})
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* If No Image Selected yet: Big Dropzone */}
-          {!selectedFile && (
             <div
               onDragOver={(e) => {
                 e.preventDefault();
                 setIsDragging(true);
               }}
               onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) {
+                  setSelectedFile(file);
+                  setPreviewUrl(URL.createObjectURL(file));
+                  setSingleLoading(true);
+                  singleExtractMutation.mutate(file);
+                }
+              }}
               onClick={() => fileInputRef.current?.click()}
-              className="rx-card"
               style={{
-                border: isDragging ? '2px dashed var(--rx-dark)' : '2px dashed var(--rx-border)',
-                backgroundColor: isDragging ? 'var(--rx-surface-muted)' : 'var(--rx-surface-subtle)',
-                borderRadius: 'var(--rx-radius-lg)',
-                padding: '4rem 2rem',
+                border: isDragging ? '2px dashed var(--rx-primary)' : '2px dashed var(--rx-border)',
+                backgroundColor: isDragging ? 'var(--rx-surface-hover)' : 'var(--rx-surface)',
+                padding: '2rem 1rem',
+                borderRadius: 'var(--rx-radius-md)',
                 textAlign: 'center',
                 cursor: 'pointer',
-                transition: 'var(--rx-transition)',
-                boxShadow: isDragging ? 'var(--rx-shadow-md)' : 'none',
+                marginBottom: '1rem',
               }}
             >
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/jpg"
+                accept="image/*"
                 style={{ display: 'none' }}
                 onChange={(e) => {
-                  if (e.target.files && e.target.files.length > 0) {
-                    handleFileSelection(e.target.files[0]);
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setSelectedFile(file);
+                    setPreviewUrl(URL.createObjectURL(file));
+                    setSingleLoading(true);
+                    singleExtractMutation.mutate(file);
                   }
                 }}
               />
-
-              <div
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--rx-surface)',
-                  border: '1px solid var(--rx-border)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--rx-dark)',
-                  marginBottom: '1rem',
-                  boxShadow: 'var(--rx-shadow-sm)',
-                }}
-              >
-                <CameraIcon size={30} />
+              <CameraIcon size={36} style={{ color: 'var(--rx-text-muted)', marginBottom: '0.5rem' }} />
+              <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                Click to upload or drag image here
               </div>
-
-              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
-                Drop receipt screenshot here, or click to browse
-              </h3>
-
-              <p style={{ margin: '0.5rem auto 1.5rem', color: 'var(--rx-text-secondary)', fontSize: '0.9rem', maxWidth: '520px' }}>
-                Supports PNG, JPEG, WebP receipts from Google Pay, PhonePe, Paytm, Stripe, Razorpay, Bank SMS, or POS terminals.
-              </p>
-
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.4rem 0.85rem',
-                  borderRadius: 'var(--rx-radius-full)',
-                  backgroundColor: 'var(--rx-surface)',
-                  border: '1px solid var(--rx-border)',
-                  fontSize: '0.8rem',
-                  color: 'var(--rx-text-secondary)',
-                }}
-              >
-                <SparkleIcon size={14} style={{ color: '#D97706' }} />
-                <span>Tip: You can also press <strong>Ctrl+V</strong> to paste a screenshot directly from your clipboard!</span>
+              <div style={{ fontSize: '0.8rem', color: 'var(--rx-text-muted)' }}>
+                PNG, JPEG, WebP (Ctrl+V paste supported)
               </div>
             </div>
-          )}
 
-          {/* EXTRACTION IN PROGRESS */}
-          {ingestionState === 'extracting' && (
-            <div
-              className="rx-card rx-animate-fade-in"
-              style={{
-                padding: '3rem 2rem',
-                textAlign: 'center',
-                backgroundColor: 'var(--rx-surface)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '1rem',
-              }}
-            >
-              <div
-                style={{
-                  width: '54px',
-                  height: '54px',
-                  borderRadius: '50%',
-                  border: '3px solid var(--rx-border)',
-                  borderTopColor: 'var(--rx-dark)',
-                  animation: 'rx-spin 0.8s linear infinite',
-                }}
-              />
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>
-                  Analyzing Screenshot with AI Vision & OCR...
-                </h3>
-                <p style={{ margin: '0.4rem 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.875rem' }}>
-                  Scanning visual layout, detecting currency, parsing monetary amounts, and extracting transaction reference tokens.
-                </p>
-              </div>
-
-              {previewUrl && (
-                <div style={{ marginTop: '1rem', maxWidth: '280px', borderRadius: 'var(--rx-radius-md)', overflow: 'hidden', border: '1px solid var(--rx-border)' }}>
-                  <img src={previewUrl} alt="Receipt preview" style={{ width: '100%', display: 'block', maxHeight: '180px', objectFit: 'cover' }} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* REVIEW & VERIFICATION VIEW (SPLIT SCREEN) */}
-          {(ingestionState === 'review' || ingestionState === 'ingesting') && extractedData && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 420px) 1fr', gap: '1.5rem', alignItems: 'start' }}>
-              {/* Left Column: Image Preview & Extraction Diagnostics */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div className="rx-card" style={{ padding: '1rem', backgroundColor: 'var(--rx-surface)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem' }}>
-                      <ImageIcon size={16} /> Screenshot Preview
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleReset}
-                      className="rx-btn rx-btn-ghost rx-btn-sm"
-                      style={{ fontSize: '0.75rem' }}
-                    >
-                      Change Image
-                    </button>
+            {previewUrl && (
+              <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                <img
+                  src={previewUrl}
+                  alt="Receipt Preview"
+                  style={{
+                    maxHeight: '260px',
+                    maxWidth: '100%',
+                    objectFit: 'contain',
+                    borderRadius: 'var(--rx-radius-md)',
+                    border: '1px solid var(--rx-border)',
+                  }}
+                />
+                {selectedFile && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--rx-text-secondary)', marginTop: '0.4rem' }}>
+                    {selectedFile.name}
                   </div>
+                )}
+              </div>
+            )}
+          </div>
 
-                  {previewUrl && (
-                    <div
-                      style={{
-                        borderRadius: 'var(--rx-radius-md)',
-                        overflow: 'hidden',
-                        border: '1px solid var(--rx-border)',
-                        backgroundColor: '#1E201E',
-                        maxHeight: '420px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <img
-                        src={previewUrl}
-                        alt="Uploaded receipt"
-                        style={{ maxWidth: '100%', maxHeight: '420px', objectFit: 'contain', display: 'block' }}
-                      />
-                    </div>
-                  )}
+          {/* Right: Extracted Form */}
+          <div className="rx-card" style={{ padding: '1.5rem' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.15rem', fontWeight: 700 }}>
+              Extracted Transaction Form
+            </h3>
 
-                  <div style={{ fontSize: '0.75rem', color: 'var(--rx-text-secondary)', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{selectedFile?.name}</span>
-                    <span>{selectedFile ? (selectedFile.size / 1024).toFixed(1) + ' KB' : ''}</span>
+            {singleErrorMessage && (
+              <div style={{ padding: '0.75rem', backgroundColor: 'var(--rx-danger-bg)', color: 'var(--rx-danger)', borderRadius: 'var(--rx-radius-md)', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                {singleErrorMessage}
+              </div>
+            )}
+
+            {ingestedResult && (
+              <div style={{ padding: '0.75rem', backgroundColor: 'var(--rx-success-bg)', color: 'var(--rx-success)', borderRadius: 'var(--rx-radius-md)', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                ✓ Successfully ingested transaction <code>{ingestedResult.externalId}</code> into ledger!
+              </div>
+            )}
+
+            {singleLoading ? (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                <RefreshIcon size={24} className="animate-spin" style={{ color: 'var(--rx-primary)', marginBottom: '0.5rem' }} />
+                <div style={{ fontWeight: 600 }}>Analyzing receipt image with OCR...</div>
+              </div>
+            ) : extractedData ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setSingleLoading(true);
+                  singleIngestMutation.mutate({
+                    dataSourceId: targetDataSourceId,
+                    externalId,
+                    amount: Number(amount),
+                    currency,
+                    transactionDate,
+                    reference,
+                    externalTxnId,
+                    merchantOrOrderId,
+                    txnType,
+                    description,
+                  });
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
+              >
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600 }}>Target Data Source</label>
+                  <select
+                    className="rx-select"
+                    value={targetDataSourceId}
+                    onChange={(e) => setTargetDataSourceId(e.target.value)}
+                    required
+                  >
+                    {dataSources?.items.map((ds) => (
+                      <option key={ds.id} value={ds.id}>{ds.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600 }}>External ID / UTR *</label>
+                    <input
+                      className="rx-input"
+                      value={externalId}
+                      onChange={(e) => setExternalId(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600 }}>Amount *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="rx-input"
+                      value={amount}
+                      onChange={(e) => setAmount(Number(e.target.value))}
+                      required
+                    />
                   </div>
                 </div>
 
-                {/* AI / OCR Extraction Diagnostics Card */}
-                <div className="rx-card" style={{ padding: '1.25rem', backgroundColor: 'var(--rx-surface)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.85rem' }}>
-                      <SparkleIcon size={14} style={{ color: '#D97706' }} /> Extraction Diagnostics
-                    </div>
-                    <span
-                      style={{
-                        padding: '0.15rem 0.5rem',
-                        borderRadius: 'var(--rx-radius-sm)',
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        backgroundColor: extractedData.extractionMethod === 'GEMINI_VISION' ? 'var(--rx-success-bg)' : 'var(--rx-pale-yellow-light)',
-                        color: extractedData.extractionMethod === 'GEMINI_VISION' ? 'var(--rx-success)' : '#854D0E',
-                        border: '1px solid var(--rx-border)',
-                      }}
-                    >
-                      {extractedData.extractionMethod === 'GEMINI_VISION' ? 'Gemini Multimodal Vision' : 'Tesseract OCR + NLP'}
-                    </span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600 }}>Currency</label>
+                    <input
+                      className="rx-input"
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                      required
+                    />
                   </div>
-
-                  {/* Confidence meter */}
-                  <div style={{ marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                      <span style={{ color: 'var(--rx-text-secondary)' }}>Confidence Score</span>
-                      <strong style={{ color: extractedData.confidenceScore >= 80 ? 'var(--rx-success)' : '#D97706' }}>
-                        {extractedData.confidenceScore}%
-                      </strong>
-                    </div>
-                    <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--rx-surface-muted)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${extractedData.confidenceScore}%`,
-                          height: '100%',
-                          backgroundColor: extractedData.confidenceScore >= 80 ? 'var(--rx-success)' : '#D97706',
-                          transition: 'width 0.4s ease',
-                        }}
-                      />
-                    </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600 }}>Date *</label>
+                    <input
+                      type="date"
+                      className="rx-input"
+                      value={transactionDate}
+                      onChange={(e) => setTransactionDate(e.target.value)}
+                      required
+                    />
                   </div>
+                </div>
 
-                  {/* Collapsible Raw OCR text */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600 }}>Reference</label>
+                  <input
+                    className="rx-input"
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                  />
+                </div>
+
+                {extractedData.rawOcrText && (
                   <div>
                     <button
                       type="button"
                       onClick={() => setRawOcrExpanded(!rawOcrExpanded)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        fontSize: '0.75rem',
-                        color: 'var(--rx-text-secondary)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        fontWeight: 600,
-                      }}
+                      className="rx-btn rx-btn-secondary rx-btn-xs"
+                      style={{ fontSize: '0.75rem' }}
                     >
-                      {rawOcrExpanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
-                      {rawOcrExpanded ? 'Hide Raw OCR Text' : 'View Detected OCR Text'}
+                      {rawOcrExpanded ? 'Hide Raw OCR Text' : 'View Raw OCR Text'}
                     </button>
-
                     {rawOcrExpanded && (
-                      <pre
-                        style={{
-                          marginTop: '0.5rem',
-                          padding: '0.75rem',
-                          backgroundColor: 'var(--rx-surface-subtle)',
-                          borderRadius: 'var(--rx-radius-sm)',
-                          fontSize: '0.7rem',
-                          maxHeight: '160px',
-                          overflowY: 'auto',
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-all',
-                          color: 'var(--rx-text-primary)',
-                          border: '1px solid var(--rx-border)',
-                        }}
-                      >
-                        {extractedData.rawOcrText || '(No OCR text detected)'}
+                      <pre style={{ maxHeight: '100px', overflowY: 'auto', fontSize: '0.72rem', marginTop: '0.4rem', padding: '0.5rem', backgroundColor: 'var(--rx-surface-hover)', borderRadius: '4px' }}>
+                        {extractedData.rawOcrText}
                       </pre>
                     )}
                   </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="rx-btn rx-btn-primary"
+                  style={{ marginTop: '0.5rem' }}
+                >
+                  Confirm & Ingest Transaction into Ledger
+                </button>
+              </form>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--rx-text-muted)' }}>
+                Upload or paste an image to extract fields.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =======================================================================
+          RECORD EDIT MODAL (CORRECTION WORKFLOW)
+          ======================================================================= */}
+      {editingRecord && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem',
+          }}
+        >
+          <div
+            className="rx-card"
+            style={{
+              width: '100%',
+              maxWidth: '560px',
+              backgroundColor: 'var(--rx-surface)',
+              padding: '1.75rem',
+              borderRadius: 'var(--rx-radius-lg)',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>
+                Correct Extracted Transaction
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingRecord(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rx-text-secondary)' }}
+              >
+                <XIcon size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                updateRecordMutation.mutate({
+                  recordId: editingRecord.id,
+                  payload: editFormData,
+                });
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+            >
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }}>
+                  External ID / UTR *
+                </label>
+                <input
+                  type="text"
+                  className="rx-input"
+                  value={editFormData.externalId || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, externalId: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }}>
+                    Amount *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="rx-input"
+                    value={editFormData.amount ?? ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, amount: Number(e.target.value) })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }}>
+                    Currency *
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={3}
+                    className="rx-input"
+                    value={editFormData.currency || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, currency: e.target.value.toUpperCase() })}
+                    required
+                  />
                 </div>
               </div>
 
-              {/* Right Column: Editable Verification Form */}
-              <form
-                onSubmit={handleIngest}
-                className="rx-card"
-                style={{ padding: '1.75rem 2rem', backgroundColor: 'var(--rx-surface)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
-              >
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }}>
+                  Transaction Date *
+                </label>
+                <input
+                  type="date"
+                  className="rx-input"
+                  value={editFormData.transactionDate || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, transactionDate: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
-                    Verify & Ingest Transaction
-                  </h3>
-                  <p style={{ margin: '0.25rem 0 0', color: 'var(--rx-text-secondary)', fontSize: '0.85rem' }}>
-                    Review the extracted fields below. Values are pre-filled by AI OCR. Adjust any details if needed before committing to the organizational ledger.
-                  </p>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  {/* Amount */}
-                  <div>
-                    <label htmlFor="txn-amount" className="rx-label">
-                      Monetary Amount *
-                    </label>
-                    <input
-                      id="txn-amount"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      required
-                      value={amount || ''}
-                      onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-                      className="rx-input"
-                      placeholder="e.g. 1499.00"
-                    />
-                  </div>
-
-                  {/* Currency */}
-                  <div>
-                    <label htmlFor="txn-currency" className="rx-label">
-                      Currency (ISO 3-Letter) *
-                    </label>
-                    <select
-                      id="txn-currency"
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                      className="rx-select"
-                    >
-                      <option value="INR">INR (₹ Indian Rupee)</option>
-                      <option value="USD">USD ($ US Dollar)</option>
-                      <option value="EUR">EUR (€ Euro)</option>
-                      <option value="GBP">GBP (£ British Pound)</option>
-                      <option value="AUD">AUD (A$ Australian Dollar)</option>
-                      <option value="CAD">CAD (C$ Canadian Dollar)</option>
-                      <option value="SGD">SGD (S$ Singapore Dollar)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  {/* Transaction Date */}
-                  <div>
-                    <label htmlFor="txn-date" className="rx-label">
-                      Transaction Date (YYYY-MM-DD) *
-                    </label>
-                    <input
-                      id="txn-date"
-                      type="date"
-                      required
-                      value={transactionDate}
-                      onChange={(e) => setTransactionDate(e.target.value)}
-                      className="rx-input"
-                    />
-                  </div>
-
-                  {/* Transaction Type */}
-                  <div>
-                    <label htmlFor="txn-type" className="rx-label">
-                      Transaction Type
-                    </label>
-                    <select
-                      id="txn-type"
-                      value={txnType}
-                      onChange={(e) => setTxnType(e.target.value)}
-                      className="rx-select"
-                    >
-                      <option value="PAYMENT">PAYMENT (Standard settlement)</option>
-                      <option value="SALE">SALE (Customer purchase)</option>
-                      <option value="CAPTURE">CAPTURE (Payment gateway capture)</option>
-                      <option value="REFUND">REFUND (Customer refund / reversal)</option>
-                      <option value="TRANSFER">TRANSFER (Account transfer)</option>
-                      <option value="CREDIT">CREDIT (Inflow credit)</option>
-                      <option value="DEBIT">DEBIT (Outflow debit)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  {/* External ID */}
-                  <div>
-                    <label htmlFor="txn-ext-id" className="rx-label">
-                      External ID / UTR / Order No. *
-                    </label>
-                    <input
-                      id="txn-ext-id"
-                      type="text"
-                      required
-                      value={externalId}
-                      onChange={(e) => setExternalId(e.target.value)}
-                      placeholder="e.g. ORD-1002 or 228941092831"
-                      className="rx-input"
-                    />
-                    <div style={{ fontSize: '0.7rem', color: 'var(--rx-text-muted)', marginTop: '0.2rem' }}>
-                      Unique identifier used to prevent ledger duplicates.
-                    </div>
-                  </div>
-
-                  {/* Reference Key for Reconciliation */}
-                  <div>
-                    <label htmlFor="txn-ref" className="rx-label">
-                      Counterparty Matching Reference
-                    </label>
-                    <input
-                      id="txn-ref"
-                      type="text"
-                      value={reference}
-                      onChange={(e) => setReference(e.target.value)}
-                      placeholder="e.g. ORD-1002 or REF-5541"
-                      className="rx-input"
-                    />
-                    <div style={{ fontSize: '0.7rem', color: 'var(--rx-text-muted)', marginTop: '0.2rem' }}>
-                      Key used by the reconciliation engine to match counterparty records.
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  {/* Gateway Txn ID */}
-                  <div>
-                    <label htmlFor="txn-gw-id" className="rx-label">
-                      Gateway Reference ID
-                    </label>
-                    <input
-                      id="txn-gw-id"
-                      type="text"
-                      value={externalTxnId}
-                      onChange={(e) => setExternalTxnId(e.target.value)}
-                      placeholder="e.g. PG-TXN-7002 or pay_Nk418s"
-                      className="rx-input"
-                    />
-                  </div>
-
-                  {/* Merchant / Order ID */}
-                  <div>
-                    <label htmlFor="txn-merchant" className="rx-label">
-                      Merchant / Order ID
-                    </label>
-                    <input
-                      id="txn-merchant"
-                      type="text"
-                      value={merchantOrOrderId}
-                      onChange={(e) => setMerchantOrOrderId(e.target.value)}
-                      placeholder="e.g. ORD-1002"
-                      className="rx-input"
-                    />
-                  </div>
-                </div>
-
-                {/* Description / Counterparty */}
-                <div>
-                  <label htmlFor="txn-desc" className="rx-label">
-                    Description / Counterparty
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }}>
+                    Reference / Order ID
                   </label>
                   <input
-                    id="txn-desc"
                     type="text"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="e.g. Payment to Supplier / Google Pay settlement"
                     className="rx-input"
+                    value={editFormData.reference || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })}
                   />
                 </div>
-
-                {/* Submit Action */}
-                <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px solid var(--rx-border-subtle)' }}>
-                  <button
-                    type="submit"
-                    disabled={ingestionState === 'ingesting'}
-                    className="rx-btn rx-btn-lime rx-btn-lg"
-                    style={{ fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                  >
-                    {ingestionState === 'ingesting' ? (
-                      <>
-                        <RefreshIcon size={16} className="rx-animate-spin" /> Ingesting into Ledger...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircleIcon size={18} /> Ingest into Ledger & Enable Reconciliation
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    disabled={ingestionState === 'ingesting'}
-                    className="rx-btn rx-btn-secondary"
-                  >
-                    Cancel
-                  </button>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }}>
+                    Merchant / Payee
+                  </label>
+                  <input
+                    type="text"
+                    className="rx-input"
+                    value={editFormData.merchantOrOrderId || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, merchantOrOrderId: e.target.value })}
+                  />
                 </div>
-              </form>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="rx-btn rx-btn-secondary"
+                  onClick={() => setEditingRecord(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rx-btn rx-btn-primary"
+                  disabled={updateRecordMutation.isPending}
+                >
+                  {updateRecordMutation.isPending ? 'Saving...' : 'Save Correction'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =======================================================================
+          SCREENSHOT PREVIEW MODAL
+          ======================================================================= */}
+      {previewModalFile && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: '1.5rem',
+          }}
+          onClick={() => setPreviewModalFile(null)}
+        >
+          <div
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              backgroundColor: '#1E293B',
+              borderRadius: 'var(--rx-radius-lg)',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: '#F8FAFC' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{previewModalFile.filename}</span>
+              <button
+                type="button"
+                onClick={() => setPreviewModalFile(null)}
+                style={{ background: 'none', border: 'none', color: '#F8FAFC', cursor: 'pointer' }}
+              >
+                <XIcon size={20} />
+              </button>
             </div>
-          )}
+            <img
+              src={previewModalFile.url}
+              alt="Screenshot Preview"
+              style={{
+                maxWidth: '85vw',
+                maxHeight: '80vh',
+                objectFit: 'contain',
+                borderRadius: 'var(--rx-radius-md)',
+              }}
+            />
+          </div>
         </div>
       )}
     </div>
